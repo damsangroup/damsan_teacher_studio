@@ -1,0 +1,2147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DamSan Teacher Studio</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bitter:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&family=Kalam:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --board:#0b1d2a;         /* deep navy board */
+    --board-edge:#08141d;
+    --hull:#101b24;          /* console background */
+    --hull-2:#16242f;
+    --chalk:#f2ede2;         /* chalk white */
+    --brass:#e8b44a;         /* brass accent */
+    --rope:#8a9aa6;          /* muted labels */
+    --rec:#ff5a52;
+    --ok:#4cc38a;
+    --radius:12px;
+  }
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--hull);
+    font-family:'IBM Plex Sans',system-ui,sans-serif;
+    color:var(--chalk);
+    display:flex; flex-direction:column;
+    overflow:hidden;
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    display:flex; align-items:center; gap:14px;
+    padding:10px 18px;
+    background:linear-gradient(180deg,var(--hull-2),var(--hull));
+    border-bottom:1px solid #22333f;
+    flex-wrap:wrap;
+  }
+  .brand{display:flex; align-items:baseline; gap:10px; margin-right:auto;}
+  .brand h1{
+    font-family:'Bitter',serif; font-weight:800; font-size:1.15rem;
+    margin:0; letter-spacing:.02em; color:var(--chalk);
+  }
+  .brand .sub{
+    font-family:'IBM Plex Mono',monospace; font-size:.68rem;
+    color:var(--brass); letter-spacing:.14em; text-transform:uppercase;
+  }
+
+  /* recording lamp + timer */
+  .rec-console{
+    display:flex; align-items:center; gap:10px;
+    background:var(--board-edge); border:1px solid #22333f;
+    border-radius:999px; padding:6px 12px;
+  }
+  .lamp{
+    width:11px; height:11px; border-radius:50%;
+    background:#3a4a55; box-shadow:0 0 0 3px rgba(255,255,255,.04) inset;
+    transition:background .2s;
+  }
+  .lamp.on{ background:var(--rec); box-shadow:0 0 10px var(--rec); animation:pulse 1.2s infinite; }
+  .lamp.paused{ background:var(--brass); box-shadow:0 0 8px var(--brass); animation:none; }
+  @keyframes pulse{ 50%{opacity:.45;} }
+  .timer{
+    font-family:'IBM Plex Mono',monospace; font-size:.9rem;
+    min-width:64px; text-align:center; color:var(--chalk);
+  }
+  .fmt-badge{
+    font-family:'IBM Plex Mono',monospace; font-size:.62rem;
+    letter-spacing:.1em; color:var(--rope);
+    border:1px solid #2a3b47; border-radius:6px; padding:2px 7px;
+  }
+  .fmt-badge.mp4{ color:var(--ok); border-color:#2c5a45; }
+
+  .btn-console{
+    border:1px solid #2a3b47; background:var(--hull-2); color:var(--chalk);
+    border-radius:10px; padding:6px 14px; font-weight:600; font-size:.85rem;
+  }
+  .btn-console:hover{ background:#1d2e3a; color:var(--chalk); border-color:#3a4f5e; }
+  .btn-console:disabled{ opacity:.4; }
+  .btn-rec{ border-color:#5e2c2c; color:#ffb3af; }
+  .btn-rec:hover{ background:#3a1c1c; color:#ffd0cd; border-color:#7a3a3a; }
+  .btn-brass{ border-color:#6b5a2c; color:var(--brass); }
+  .btn-brass:hover{ background:#3a3220; color:#f3cd7a; border-color:#8a7440; }
+
+  .mic-toggle{ display:flex; align-items:center; gap:6px; font-size:.8rem; color:var(--rope); }
+  .form-check-input{ background-color:#22333f; border-color:#3a4f5e; }
+  .form-check-input:checked{ background-color:var(--brass); border-color:var(--brass); }
+
+  /* ---------- Workspace ---------- */
+  .workspace{ flex:1; display:flex; min-height:0; }
+
+  /* Tool rail */
+  .rail{
+    width:64px; background:var(--hull-2);
+    border-right:1px solid #22333f;
+    display:flex; flex-direction:column; align-items:center;
+    padding:10px 0; gap:6px; overflow-y:auto;
+  }
+  .tool-btn{
+    width:44px; height:44px; border-radius:10px;
+    border:1px solid transparent; background:transparent;
+    font-size:1.15rem; color:var(--chalk);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; position:relative;
+  }
+  .tool-btn:hover{ background:#1d2e3a; }
+  .tool-btn.active{ background:#243746; border-color:var(--brass); }
+  .rail-divider{ width:36px; border-top:1px solid #2a3b47; margin:4px 0; }
+
+  /* Board area */
+  .board-wrap{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:10px;
+    padding:12px 16px 16px; min-width:0; position:relative;
+    background:
+      radial-gradient(1200px 600px at 50% -200px, #14232e 0%, var(--hull) 60%);
+  }
+
+  /* Slide strip */
+  .slide-strip{
+    display:flex; align-items:center; gap:8px;
+    max-width:100%; overflow-x:auto; padding:4px 2px;
+    scrollbar-width:thin;
+  }
+  .slide-tab{
+    position:relative; flex:0 0 auto;
+    width:96px; height:58px; border-radius:8px;
+    border:2px solid #2a3b47; background:var(--board);
+    cursor:pointer; padding:0; overflow:hidden;
+    transition:border-color .15s, transform .15s;
+  }
+  .slide-tab:hover{ border-color:#3a4f5e; transform:translateY(-2px); }
+  .slide-tab.active{ border-color:var(--brass); box-shadow:0 0 12px rgba(232,180,74,.35); }
+  .slide-tab canvas{ width:100%; height:100%; display:block; }
+  .slide-num{
+    position:absolute; left:4px; bottom:3px;
+    font-family:'IBM Plex Mono',monospace; font-size:.6rem;
+    color:var(--chalk); background:rgba(8,20,29,.75);
+    border-radius:4px; padding:0 5px; pointer-events:none;
+  }
+  .slide-del{
+    position:absolute; top:2px; right:2px;
+    width:16px; height:16px; border-radius:4px; border:none;
+    background:rgba(8,20,29,.8); color:#ffb3af;
+    font-size:.6rem; line-height:1; cursor:pointer;
+    display:none; align-items:center; justify-content:center;
+  }
+  .slide-tab.active .slide-del{ display:flex; }
+  .slide-add{
+    flex:0 0 auto; width:44px; height:58px; border-radius:8px;
+    border:2px dashed #3a4f5e; background:transparent;
+    color:var(--rope); font-size:1.2rem; cursor:pointer;
+  }
+  .slide-add:hover{ border-color:var(--brass); color:var(--brass); }
+
+  /* Shapes flyout */
+  .shape-panel{
+    position:fixed; left:72px; z-index:1500;
+    background:var(--hull-2); border:1px solid #2a3b47; border-radius:12px;
+    box-shadow:0 16px 50px rgba(0,0,0,.55);
+    padding:12px 14px; width:300px; max-height:70vh; overflow-y:auto;
+  }
+  .shape-sec + .shape-sec{ margin-top:10px; }
+  .shape-sec-label{
+    font-family:'IBM Plex Mono',monospace; font-size:.6rem;
+    color:var(--brass); letter-spacing:.14em; text-transform:uppercase;
+    margin-bottom:6px;
+  }
+  .shape-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+  .shape-chip{
+    background:#1d2e3a; border:1px solid #2a3b47; border-radius:9px;
+    color:var(--chalk); cursor:pointer; padding:6px 2px 5px;
+    display:flex; flex-direction:column; align-items:center; gap:2px;
+  }
+  .shape-chip span{ font-size:1.05rem; line-height:1; }
+  .shape-chip small{ font-size:.56rem; color:var(--rope); }
+  .shape-chip:hover{ border-color:#3a4f5e; background:#243746; }
+  .shape-chip.active{ border-color:var(--brass); background:#243746; }
+  .shape-chip.active small{ color:var(--chalk); }
+
+  .board-frame{
+    position:relative; max-width:100%; max-height:100%;
+    aspect-ratio:16/9;
+    width:min(100%, calc((100vh - 250px) * 16 / 9));
+    border-radius:var(--radius);
+    box-shadow:0 20px 60px rgba(0,0,0,.5), 0 0 0 1px #22333f;
+    overflow:hidden;
+  }
+  #board{
+    width:100%; height:100%; display:block; background:var(--board);
+    touch-action:none; cursor:crosshair;
+  }
+
+  /* Bottom option strip */
+  .options{
+    display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+    padding:8px 18px;
+    background:var(--hull-2); border-top:1px solid #22333f;
+  }
+  .opt-group{ display:flex; align-items:center; gap:8px; }
+  .opt-label{
+    font-family:'IBM Plex Mono',monospace; font-size:.62rem;
+    color:var(--rope); letter-spacing:.12em; text-transform:uppercase;
+  }
+  .swatch{
+    width:24px; height:24px; border-radius:50%; cursor:pointer;
+    border:2px solid transparent; padding:0;
+  }
+  .swatch.active{ border-color:var(--brass); box-shadow:0 0 0 2px var(--hull-2), 0 0 0 3px var(--brass); }
+  .size-btn{
+    background:#1d2e3a; border:1px solid #2a3b47; border-radius:8px;
+    color:var(--chalk); width:34px; height:30px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .size-btn.active{ border-color:var(--brass); background:#243746; }
+  .size-dot{ background:var(--chalk); border-radius:50%; }
+  .bg-btn{
+    background:#1d2e3a; border:1px solid #2a3b47; border-radius:8px;
+    color:var(--rope); font-size:.75rem; padding:4px 10px; cursor:pointer;
+  }
+  .bg-btn.active{ color:var(--chalk); border-color:var(--brass); background:#243746; }
+  .board-swatch{
+    width:24px; height:24px; border-radius:6px; cursor:pointer; padding:0;
+    border:2px solid #3a4f5e;
+  }
+  .board-swatch.active{ border-color:var(--brass); box-shadow:0 0 0 2px var(--hull-2), 0 0 0 3px var(--brass); }
+
+  /* Modals */
+  .modal-content{
+    background:var(--hull-2); color:var(--chalk);
+    border:1px solid #2a3b47; border-radius:var(--radius);
+  }
+  .modal-header,.modal-footer{ border-color:#2a3b47; }
+  .form-control{
+    background:var(--board-edge); border-color:#2a3b47; color:var(--chalk);
+  }
+  .form-control:focus{
+    background:var(--board-edge); color:var(--chalk);
+    border-color:var(--brass); box-shadow:0 0 0 .2rem rgba(232,180,74,.15);
+  }
+  .form-select{
+    background-color:var(--board-edge); border-color:#2a3b47; color:var(--chalk);
+  }
+  .form-select:focus{
+    border-color:var(--brass); box-shadow:0 0 0 .2rem rgba(232,180,74,.15);
+  }
+  video.preview{ width:100%; border-radius:10px; background:#000; }
+
+  /* Formula composer */
+  .latex-preview{
+    min-height:84px; background:var(--board); border-radius:10px;
+    display:flex; align-items:center; justify-content:center;
+    padding:12px; overflow-x:auto; color:var(--chalk);
+  }
+  .pv-hint{ color:var(--rope); font-size:.85rem; }
+  .pv-err{ color:#ff8a80; font-size:.85rem; font-family:'IBM Plex Mono',monospace; }
+  .mk-group{ margin-top:8px; }
+  .mk-label{
+    font-family:'IBM Plex Mono',monospace; font-size:.6rem;
+    color:var(--brass); letter-spacing:.14em; text-transform:uppercase;
+    margin-bottom:4px;
+  }
+  .mk-grid{ display:flex; flex-wrap:wrap; gap:6px; }
+  .mk-key{
+    background:#1d2e3a; border:1px solid #2a3b47; border-radius:8px;
+    color:var(--chalk); min-width:42px; height:34px; padding:0 8px;
+    cursor:pointer; font-size:.95rem;
+  }
+  .mk-key:hover{ border-color:var(--brass); background:#243746; }
+
+  /* Toast */
+  .toast-zone{ position:fixed; bottom:70px; left:50%; transform:translateX(-50%); z-index:2000; display:flex; flex-direction:column; gap:8px; align-items:center;}
+  .studio-toast{
+    background:var(--board-edge); border:1px solid #2a3b47; color:var(--chalk);
+    border-radius:10px; padding:9px 16px; font-size:.85rem;
+    box-shadow:0 8px 30px rgba(0,0,0,.5); opacity:0; transition:opacity .25s;
+  }
+  .studio-toast.show{ opacity:1; }
+
+  @media (max-width: 720px){
+    .rail{ width:52px; }
+    .tool-btn{ width:38px; height:38px; font-size:1rem; }
+    .brand .sub{ display:none; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .lamp.on{ animation:none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ======= Top bar ======= -->
+<header class="topbar">
+  <div class="brand">
+    <h1>DamSan Teacher Studio</h1>
+  </div>
+
+  <div class="mic-toggle form-check form-switch m-0">
+    <input class="form-check-input" type="checkbox" id="micToggle" checked>
+    <label for="micToggle">🎙️ Mic</label>
+  </div>
+
+  <div class="mic-toggle form-check form-switch m-0">
+    <input class="form-check-input" type="checkbox" id="camToggle">
+    <label for="camToggle">📷 Cam</label>
+  </div>
+
+  <div class="rec-console">
+    <span class="lamp" id="lamp"></span>
+    <span class="timer" id="timer">00:00</span>
+    <span class="fmt-badge" id="fmtBadge">…</span>
+  </div>
+
+  <button class="btn btn-console" id="btnSettings" title="Settings">⚙️</button>
+  <button class="btn btn-console" id="btnFullscreen" title="Fullscreen (F)">⛶</button>
+  <button class="btn btn-console btn-rec" id="btnRecord">⏺ Record</button>
+  <button class="btn btn-console" id="btnPause" disabled>⏸ Pause</button>
+  <button class="btn btn-console btn-brass" id="btnStop" disabled>⏹ Stop &amp; Export</button>
+</header>
+
+<!-- ======= Workspace ======= -->
+<div class="workspace">
+  <nav class="rail" id="rail">
+    <button class="tool-btn" data-tool="select"          title="Select / move image (V)">🖐️</button>
+    <button class="tool-btn active" data-tool="pen"     title="Chalk pen (P)">✏️</button>
+    <button class="tool-btn" data-tool="highlighter"    title="Highlighter (H)">🖍️</button>
+    <button class="tool-btn" data-tool="eraser"         title="Eraser (E)">🧽</button>
+    <button class="tool-btn" data-tool="laser"          title="Laser pointer (L)">🔦</button>
+    <div class="rail-divider"></div>
+    <button class="tool-btn" id="btnShapes"             title="Shapes (S)">🔷</button>
+    <button class="tool-btn" data-tool="text"           title="Text (T)">🔤</button>
+    <button class="tool-btn" id="btnImage"              title="Insert image or GIF (also drag-drop / Ctrl+V)">🖼️</button>
+    <button class="tool-btn" id="btnFormula"            title="Math formula (M)">∑</button>
+    <input type="file" id="imgInput" accept="image/*" hidden>
+    <div class="rail-divider"></div>
+    <button class="tool-btn" id="btnUndo"               title="Undo (Ctrl+Z)">↩️</button>
+    <button class="tool-btn" id="btnRedo"               title="Redo (Ctrl+Y)">↪️</button>
+    <button class="tool-btn" id="btnClear"              title="Clear board">🗑️</button>
+  </nav>
+
+  <main class="board-wrap">
+    <div class="slide-strip" id="slideStrip" aria-label="Slides"></div>
+    <div class="board-frame">
+      <canvas id="board" width="1600" height="900"></canvas>
+    </div>
+  </main>
+</div>
+
+<!-- ======= Options strip ======= -->
+<footer class="options">
+  <div class="opt-group">
+    <span class="opt-label">Chalk</span>
+    <button class="swatch active" style="background:#f2ede2" data-color="#f2ede2" title="Chalk white"></button>
+    <button class="swatch" style="background:#20262b" data-color="#20262b" title="Ink black"></button>
+    <button class="swatch" style="background:#e8b44a" data-color="#e8b44a" title="Brass"></button>
+    <button class="swatch" style="background:#6fd3ff" data-color="#6fd3ff" title="Sky"></button>
+    <button class="swatch" style="background:#4cc38a" data-color="#4cc38a" title="Green"></button>
+    <button class="swatch" style="background:#ff8a80" data-color="#ff8a80" title="Coral"></button>
+    <button class="swatch" style="background:#d9a7ff" data-color="#d9a7ff" title="Violet"></button>
+  </div>
+
+  <div class="opt-group">
+    <span class="opt-label">Board</span>
+    <button class="board-swatch active" style="background:#0b1d2a" data-board="#0b1d2a" title="Navy (DamSan)"></button>
+    <button class="board-swatch" style="background:#101113" data-board="#101113" title="Black"></button>
+    <button class="board-swatch" style="background:#12352a" data-board="#12352a" title="Classic green"></button>
+    <button class="board-swatch" style="background:#f8f7f2" data-board="#f8f7f2" title="White"></button>
+  </div>
+
+  <div class="opt-group form-check form-switch m-0" style="padding-left:2.4em">
+    <input class="form-check-input" type="checkbox" id="badgeToggle" checked>
+    <label class="opt-label" for="badgeToggle" style="cursor:pointer">School badge</label>
+  </div>
+
+  <div class="opt-group">
+    <span class="opt-label">Size</span>
+    <button class="size-btn" data-size="3"><span class="size-dot" style="width:4px;height:4px"></span></button>
+    <button class="size-btn active" data-size="6"><span class="size-dot" style="width:8px;height:8px"></span></button>
+    <button class="size-btn" data-size="12"><span class="size-dot" style="width:13px;height:13px"></span></button>
+    <button class="size-btn" data-size="22"><span class="size-dot" style="width:18px;height:18px"></span></button>
+  </div>
+
+  <div class="opt-group">
+    <span class="opt-label">Paper</span>
+    <button class="bg-btn active" data-bg="plain">Plain</button>
+    <button class="bg-btn" data-bg="grid">Grid</button>
+    <button class="bg-btn" data-bg="graph">Graph XY</button>
+    <button class="bg-btn" data-bg="ruled">Ruled</button>
+  </div>
+</footer>
+
+<!-- ======= Text input modal ======= -->
+<div class="modal fade" id="textModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title">Add text to board</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="text" class="form-control" id="textInput" placeholder="e.g. Area = πr²" maxlength="120">
+        <select class="form-select mt-2" id="textSizeSel" title="Text size">
+          <option value="default" id="textSizeDefaultOpt" selected>Default — 48 px</option>
+          <option value="34">Small — 34 px</option>
+          <option value="48">Ruled-line fit — 48 px</option>
+          <option value="72">Large — 72 px</option>
+          <option value="96">Heading — 96 px</option>
+        </select>
+        <div class="form-text" style="color:var(--rope)">Tip: paste symbols like π √ ² ³ ° ∠ Δ θ ÷ × ≈ ≤ ≥ · On ruled paper, text snaps onto the nearest line.</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-console" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-console btn-brass" id="textOk">Place text</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======= Formula composer modal ======= -->
+<div class="modal fade" id="formulaModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title" id="formulaTitle">Insert math formula</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <textarea class="form-control" id="latexInput" rows="2" spellcheck="false"
+          placeholder="Type LaTeX, e.g.  \frac{4}{3}\pi r^{3}   — or build it with the keys below"></textarea>
+        <div class="latex-preview mt-2" id="latexPreview"><span class="pv-hint">Preview appears here…</span></div>
+        <label class="form-label d-flex justify-content-between mt-2 mb-1">
+          <span style="font-size:.85rem">Formula size</span>
+          <span style="color:var(--brass); font-size:.85rem" id="fmSizeVal">48 px</span>
+        </label>
+        <input type="range" class="form-range" id="fmSize" min="24" max="120" step="2" value="48">
+        <div id="mathKeyboard" class="mt-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-console" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-console btn-brass" id="formulaOk">Place formula</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======= Clear confirm modal ======= -->
+<div class="modal fade" id="clearModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-body pt-4">Clear the whole board? This can't be undone.</div>
+      <div class="modal-footer">
+        <button class="btn btn-console" data-bs-dismiss="modal">Keep it</button>
+        <button class="btn btn-console btn-rec" id="clearOk">Clear board</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======= Delete slide confirm modal ======= -->
+<div class="modal fade" id="delSlideModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-body pt-4" id="delSlideMsg">Delete this slide?</div>
+      <div class="modal-footer">
+        <button class="btn btn-console" data-bs-dismiss="modal">Keep it</button>
+        <button class="btn btn-console btn-rec" id="delSlideOk">Delete slide</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======= Export modal ======= -->
+<div class="modal fade" id="exportModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title">Lesson recording ready</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <video class="preview" id="previewVideo" controls playsinline></video>
+        <div class="mt-2 small" style="color:var(--rope)" id="exportInfo"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-console" data-bs-dismiss="modal">Discard</button>
+        <a class="btn btn-console btn-brass" id="downloadLink" download>⬇ Download</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======= Settings modal ======= -->
+<div class="modal fade" id="settingsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title">⚙️ Studio settings</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <label class="form-label d-flex justify-content-between" for="setFontSize">
+          <span>Default text size</span>
+          <span style="color:var(--brass)" id="setFontSizeVal">48 px</span>
+        </label>
+        <input type="range" class="form-range" id="setFontSize" min="24" max="120" step="2" value="48">
+        <div class="form-text mb-3" style="color:var(--rope)">48 px fits neatly on ruled-paper lines (70 px spacing).</div>
+
+        <label class="form-label d-flex justify-content-between" for="setFormulaSize">
+          <span>Default formula size</span>
+          <span style="color:var(--brass)" id="setFormulaSizeVal">48 px</span>
+        </label>
+        <input type="range" class="form-range" id="setFormulaSize" min="24" max="120" step="2" value="48">
+        <div class="form-text mb-3" style="color:var(--rope)">Matching both sliders keeps text and formulas the same visual size.</div>
+
+        <div class="form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" id="setMicDefault">
+          <label class="form-check-label" for="setMicDefault">🎙️ Microphone on by default</label>
+        </div>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="setCamDefault">
+          <label class="form-check-label" for="setCamDefault">📷 Webcam bubble on at startup</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-console" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-console btn-brass" id="settingsOk">Save settings</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======= Shapes flyout ======= -->
+<div class="shape-panel" id="shapePanel" hidden>
+  <div class="shape-sec">
+    <div class="shape-sec-label">Basic</div>
+    <div class="shape-grid">
+      <button class="shape-chip" data-shape="line"><span>╱</span><small>Line</small></button>
+      <button class="shape-chip" data-shape="arrow"><span>➡️</span><small>Arrow</small></button>
+      <button class="shape-chip" data-shape="rect"><span>▭</span><small>Rectangle</small></button>
+      <button class="shape-chip" data-shape="circle"><span>◯</span><small>Circle</small></button>
+    </div>
+  </div>
+  <div class="shape-sec">
+    <div class="shape-sec-label">2D Mensuration</div>
+    <div class="shape-grid">
+      <button class="shape-chip" data-shape="triangle"><span>△</span><small>Triangle</small></button>
+      <button class="shape-chip" data-shape="rtriangle"><span>◺</span><small>Right △</small></button>
+      <button class="shape-chip" data-shape="parallelogram"><span>▱</span><small>Parall.</small></button>
+      <button class="shape-chip" data-shape="trapezium"><span>⏢</span><small>Trapezium</small></button>
+      <button class="shape-chip" data-shape="rhombus"><span>◇</span><small>Rhombus</small></button>
+      <button class="shape-chip" data-shape="semicircle"><span>◗</span><small>Semicircle</small></button>
+      <button class="shape-chip" data-shape="sector"><span>◔</span><small>Sector</small></button>
+    </div>
+  </div>
+  <div class="shape-sec">
+    <div class="shape-sec-label">3D Solids</div>
+    <div class="shape-grid">
+      <button class="shape-chip" data-shape="cube"><span>🧊</span><small>Cube</small></button>
+      <button class="shape-chip" data-shape="cuboid"><span>📦</span><small>Cuboid</small></button>
+      <button class="shape-chip" data-shape="cylinder"><span>🛢️</span><small>Cylinder</small></button>
+      <button class="shape-chip" data-shape="cone"><span>🍦</span><small>Cone</small></button>
+      <button class="shape-chip" data-shape="sphere"><span>🔮</span><small>Sphere</small></button>
+      <button class="shape-chip" data-shape="hemisphere"><span>🥣</span><small>Hemisph.</small></button>
+      <button class="shape-chip" data-shape="frustum"><span>🪣</span><small>Frustum</small></button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-zone" id="toastZone"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ts-ebml@3.0.2/dist/EBML.min.js"></script>
+<script>
+  window.MathJax = {
+    startup: { typeset: false },
+    svg: { fontCache: 'none' }   // inline glyph paths → SVGs stay standalone for canvas rasterizing
+  };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  /* ================= Canvas setup ================= */
+  const W = 1600, H = 900;
+  const board = document.getElementById('board');
+  const ctx = board.getContext('2d');
+
+  // Off-screen "ink" layer: strokes live here (transparent bg),
+  // so the eraser can punch through without destroying the paper pattern.
+  const ink = document.createElement('canvas');
+  ink.width = W; ink.height = H;
+  const ictx = ink.getContext('2d');
+
+  const DEFAULT_BOARD = '#0b1d2a';
+  let boardColor = DEFAULT_BOARD;
+  const RULE_START = 90, RULE_GAP = 70;   // ruled-paper geometry, shared with text snapping
+
+  function isLight(hex){
+    const n = parseInt(hex.slice(1), 16);
+    const r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+    return (0.299*r + 0.587*g + 0.114*b) > 150;
+  }
+
+  /* ================= State ================= */
+  let tool = 'pen';
+  let color = '#f2ede2';
+  let size = 6;
+  let bgMode = 'plain';
+
+  let strokes = [];        // committed history of the ACTIVE slide
+  let redoStack = [];
+  let current = null;      // stroke in progress
+  let laserTrail = [];     // transient laser points {x,y,t}
+  let drawing = false;
+  let hoverPos = null;     // live pointer position for tool indicators
+
+  /* ---- Slides: each slide owns its strokes, redo history, images and paper mode ---- */
+  let slides = [ newSlide() ];
+  let activeSlide = 0;
+  function newSlide(){ return { strokes: [], redoStack: [], bgMode: 'plain', images: [], boardColor: DEFAULT_BOARD }; }
+  let images = slides[0].images;   // images of the ACTIVE slide
+  let selectedImg = null;          // image currently selected (select tool)
+  let imgAction = null;            // {mode:'move'|'resize', dx, dy}
+  let selectedShape = null;        // committed shape/text stroke being edited
+  let shapeAction = null;          // {mode:'move'|'resize', lx, ly}
+
+  function strokeBBox(s){
+    if (s.tool === 'text'){
+      const px = s.fontPx || s.size * 7;
+      ictx.save();
+      ictx.font = `700 ${px}px 'Kalam', 'IBM Plex Sans', sans-serif`;
+      const w = ictx.measureText(s.text).width;
+      ictx.restore();
+      return { x: s.x, y: s.y - px/2, w, h: px };
+    }
+    if (s.x0 !== undefined){
+      return { x: Math.min(s.x0, s.x1), y: Math.min(s.y0, s.y1),
+               w: Math.abs(s.x1 - s.x0), h: Math.abs(s.y1 - s.y0) };
+    }
+    return null; // freehand strokes aren't selectable
+  }
+  function shapeAt(p){
+    for (let i = strokes.length - 1; i >= 0; i--){
+      const b = strokeBBox(strokes[i]);
+      if (b && p.x >= b.x - 8 && p.x <= b.x + b.w + 8 &&
+               p.y >= b.y - 8 && p.y <= b.y + b.h + 8) return strokes[i];
+    }
+    return null;
+  }
+  function moveStroke(s, dx, dy){
+    if (s.tool === 'text'){ s.x += dx; s.y += dy; }
+    else { s.x0 += dx; s.y0 += dy; s.x1 += dx; s.y1 += dy; }
+  }
+
+  // What the hand tool would do at this point → matching cursor
+  function selectCursorFor(p){
+    const HR = 18;
+    const near = (a,b) => Math.hypot(p.x-a, p.y-b) < HR;
+    if (selectedShape){
+      const b = strokeBBox(selectedShape);
+      if (b){
+        if (near(b.x + b.w, b.y)) return 'pointer';                       // delete ✕
+        if (selectedShape.tool !== 'text' && near(b.x + b.w, b.y + b.h))
+          return 'nwse-resize';                                           // resize dot
+      }
+    }
+    if (selectedImg){
+      if (near(selectedImg.x + selectedImg.w, selectedImg.y)) return 'pointer';
+      if (near(selectedImg.x + selectedImg.w, selectedImg.y + selectedImg.h)) return 'nwse-resize';
+    }
+    if (shapeAt(p) || imageAt(p)) return 'grab';                          // movable item
+    return 'default';
+  }
+
+  /* ================= Geometry helpers ================= */
+  function pos(e){
+    const r = board.getBoundingClientRect();
+    return {
+      x: (e.clientX - r.left) * (W / r.width),
+      y: (e.clientY - r.top)  * (H / r.height)
+    };
+  }
+
+  /* ================= Rendering ================= */
+  function drawPaper(c, mode = bgMode, bc = boardColor){
+    c.fillStyle = bc;
+    c.fillRect(0,0,W,H);
+    c.save();
+    const light = isLight(bc);
+    c.strokeStyle = light ? 'rgba(20,35,46,0.16)' : 'rgba(242,237,226,0.10)';
+    c.lineWidth = 1;
+
+    if (mode === 'grid' || mode === 'graph'){
+      const step = mode === 'graph' ? 40 : 60;
+      c.beginPath();
+      for (let x = step; x < W; x += step){ c.moveTo(x,0); c.lineTo(x,H); }
+      for (let y = step; y < H; y += step){ c.moveTo(0,y); c.lineTo(W,y); }
+      c.stroke();
+      if (mode === 'graph'){
+        // brass axes through centre
+        c.strokeStyle = 'rgba(232,180,74,0.45)';
+        c.lineWidth = 2;
+        c.beginPath();
+        c.moveTo(W/2, 0); c.lineTo(W/2, H);
+        c.moveTo(0, H/2); c.lineTo(W, H/2);
+        c.stroke();
+      }
+    } else if (mode === 'ruled'){
+      c.strokeStyle = light ? 'rgba(20,35,46,0.20)' : 'rgba(242,237,226,0.12)';
+      c.beginPath();
+      for (let y = RULE_START; y < H; y += RULE_GAP){ c.moveTo(60,y); c.lineTo(W-60,y); }
+      c.stroke();
+      c.strokeStyle = 'rgba(255,138,128,0.25)';
+      c.beginPath(); c.moveTo(130,40); c.lineTo(130,H-40); c.stroke();
+    }
+    c.restore();
+  }
+
+  const SHAPE_TOOLS = new Set(['line','arrow','rect','circle','triangle','rtriangle',
+    'parallelogram','trapezium','rhombus','semicircle','sector',
+    'cube','cuboid','cylinder','cone','sphere','hemisphere','frustum']);
+
+  // Mensuration wireframes drawn inside the dragged bounding box.
+  // Hidden edges of 3D solids are dashed, textbook style.
+  function drawShape(s, c){
+    const x = Math.min(s.x0, s.x1), y = Math.min(s.y0, s.y1);
+    const w = Math.max(12, Math.abs(s.x1 - s.x0));
+    const h = Math.max(12, Math.abs(s.y1 - s.y0));
+    const cx = x + w/2;
+    const dash  = () => c.setLineDash([9, 7]);
+    const solid = () => c.setLineDash([]);
+    const poly = pts => {
+      c.beginPath(); c.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0], pts[i][1]);
+      c.closePath(); c.stroke();
+    };
+    const seg = (a, b) => { c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke(); };
+    const halfEllipse = (ecx, ecy, rx, ry, top) => {
+      c.beginPath();
+      c.ellipse(ecx, ecy, rx, ry, 0, top ? Math.PI : 0, top ? 2*Math.PI : Math.PI);
+      c.stroke();
+    };
+
+    solid();
+    switch (s.tool){
+      case 'triangle':
+        poly([[cx, y], [x, y+h], [x+w, y+h]]); break;
+      case 'rtriangle':
+        poly([[x, y], [x, y+h], [x+w, y+h]]); break;
+      case 'parallelogram': {
+        const o = w * 0.25;
+        poly([[x+o, y], [x+w, y], [x+w-o, y+h], [x, y+h]]); break;
+      }
+      case 'trapezium': {
+        const o = w * 0.22;
+        poly([[x+o, y], [x+w-o, y], [x+w, y+h], [x, y+h]]); break;
+      }
+      case 'rhombus':
+        poly([[cx, y], [x+w, y+h/2], [cx, y+h], [x, y+h/2]]); break;
+      case 'semicircle':
+        halfEllipse(cx, y+h, w/2, h, true);
+        seg([x, y+h], [x+w, y+h]); break;
+      case 'sector': {
+        c.beginPath();
+        c.moveTo(x, y+h);
+        c.lineTo(x, y);
+        c.ellipse(x, y+h, w, h, 0, -Math.PI/2, 0);
+        c.lineTo(x, y+h);
+        c.stroke(); break;
+      }
+      case 'cube': case 'cuboid': {
+        const d = Math.min(w, h) * 0.3;
+        // front face
+        c.strokeRect(x, y+d, w-d, h-d);
+        // visible top & right edges
+        seg([x, y+d], [x+d, y]);
+        seg([x+w-d, y+d], [x+w, y]);
+        seg([x+d, y], [x+w, y]);
+        seg([x+w, y], [x+w, y+h-d]);
+        seg([x+w-d, y+h], [x+w, y+h-d]);
+        // hidden edges to the back-bottom-left vertex
+        dash();
+        seg([x+d, y], [x+d, y+h-d]);
+        seg([x+d, y+h-d], [x+w, y+h-d]);
+        seg([x, y+h], [x+d, y+h-d]);
+        solid(); break;
+      }
+      case 'cylinder': {
+        const ry = Math.min(h*0.18, w*0.35);
+        c.beginPath(); c.ellipse(cx, y+ry, w/2, ry, 0, 0, Math.PI*2); c.stroke();
+        seg([x, y+ry], [x, y+h-ry]);
+        seg([x+w, y+ry], [x+w, y+h-ry]);
+        halfEllipse(cx, y+h-ry, w/2, ry, false);
+        dash(); halfEllipse(cx, y+h-ry, w/2, ry, true); solid(); break;
+      }
+      case 'cone': {
+        const ry = Math.min(h*0.15, w*0.35);
+        seg([cx, y], [x, y+h-ry]);
+        seg([cx, y], [x+w, y+h-ry]);
+        halfEllipse(cx, y+h-ry, w/2, ry, false);
+        dash(); halfEllipse(cx, y+h-ry, w/2, ry, true); solid(); break;
+      }
+      case 'sphere': {
+        const ry = h * 0.16;
+        c.beginPath(); c.ellipse(cx, y+h/2, w/2, h/2, 0, 0, Math.PI*2); c.stroke();
+        halfEllipse(cx, y+h/2, w/2, ry, false);
+        dash(); halfEllipse(cx, y+h/2, w/2, ry, true); solid(); break;
+      }
+      case 'hemisphere': {
+        const ry = Math.min(h*0.25, w*0.3);
+        halfEllipse(cx, y+h-ry, w/2, h-ry, true);          // dome
+        halfEllipse(cx, y+h-ry, w/2, ry, false);           // base front
+        dash(); halfEllipse(cx, y+h-ry, w/2, ry, true); solid(); break;
+      }
+      case 'frustum': {
+        const tw = w * 0.55;
+        const ryT = Math.min(h*0.10, tw*0.3);
+        const ryB = Math.min(h*0.14, w*0.35);
+        c.beginPath(); c.ellipse(cx, y+ryT, tw/2, ryT, 0, 0, Math.PI*2); c.stroke();
+        seg([cx-tw/2, y+ryT], [x, y+h-ryB]);
+        seg([cx+tw/2, y+ryT], [x+w, y+h-ryB]);
+        halfEllipse(cx, y+h-ryB, w/2, ryB, false);
+        dash(); halfEllipse(cx, y+h-ryB, w/2, ryB, true); solid(); break;
+      }
+    }
+  }
+
+  function strokeStyleFor(s, c){
+    c.lineCap = 'round';
+    c.lineJoin = 'round';
+    c.lineWidth = s.size;
+    c.strokeStyle = s.color;
+    c.fillStyle = s.color;
+    c.globalAlpha = 1;
+    c.globalCompositeOperation = 'source-over';
+    if (s.tool === 'highlighter'){ c.globalAlpha = 0.35; c.lineWidth = s.size * 3; }
+    if (s.tool === 'eraser'){ c.globalCompositeOperation = 'destination-out'; c.lineWidth = s.size * 4; }
+  }
+
+  function renderStroke(s, c){
+    c.save();
+    strokeStyleFor(s, c);
+    switch (s.tool){
+      case 'pen': case 'highlighter': case 'eraser': {
+        const p = s.points;
+        if (p.length === 1){
+          c.beginPath(); c.arc(p[0].x, p[0].y, c.lineWidth/2, 0, Math.PI*2); c.fill();
+        } else {
+          c.beginPath(); c.moveTo(p[0].x, p[0].y);
+          for (let i=1; i<p.length; i++) c.lineTo(p[i].x, p[i].y);
+          c.stroke();
+        }
+        break;
+      }
+      case 'line': {
+        c.beginPath(); c.moveTo(s.x0,s.y0); c.lineTo(s.x1,s.y1); c.stroke();
+        break;
+      }
+      case 'arrow': {
+        c.beginPath(); c.moveTo(s.x0,s.y0); c.lineTo(s.x1,s.y1); c.stroke();
+        const ang = Math.atan2(s.y1-s.y0, s.x1-s.x0);
+        const len = Math.max(14, s.size*3);
+        c.beginPath();
+        c.moveTo(s.x1, s.y1);
+        c.lineTo(s.x1 - len*Math.cos(ang-0.5), s.y1 - len*Math.sin(ang-0.5));
+        c.moveTo(s.x1, s.y1);
+        c.lineTo(s.x1 - len*Math.cos(ang+0.5), s.y1 - len*Math.sin(ang+0.5));
+        c.stroke();
+        break;
+      }
+      case 'rect': {
+        c.strokeRect(Math.min(s.x0,s.x1), Math.min(s.y0,s.y1),
+                     Math.abs(s.x1-s.x0), Math.abs(s.y1-s.y0));
+        break;
+      }
+      case 'circle': {
+        c.beginPath();
+        c.ellipse((s.x0+s.x1)/2, (s.y0+s.y1)/2,
+                  Math.abs(s.x1-s.x0)/2, Math.abs(s.y1-s.y0)/2, 0, 0, Math.PI*2);
+        c.stroke();
+        break;
+      }
+      case 'text': {
+        const px = s.fontPx || s.size * 7;
+        c.font = `700 ${px}px 'Kalam', 'IBM Plex Sans', sans-serif`;
+        c.textBaseline = 'middle';
+        c.fillText(s.text, s.x, s.y);
+        break;
+      }
+      default:
+        if (SHAPE_TOOLS.has(s.tool)) drawShape(s, c);
+    }
+    c.restore();
+  }
+
+  function rebuildInk(){
+    ictx.clearRect(0,0,W,H);
+    for (const s of strokes) renderStroke(s, ictx);
+  }
+
+  // Composite loop: paper + ink + in-progress preview + laser.
+  // Runs every frame → canvas stays "dirty", so captureStream records
+  // continuously even while the teacher is only speaking.
+  function currentBitmap(im, now){
+    if (!im.frames) return im.bmp;
+    let t = (now - im.start) % im.totalDur;
+    for (const f of im.frames){ if ((t -= f.dur) < 0) return f.bmp; }
+    return im.frames[0].bmp;
+  }
+
+  /* ---- Lower-third school badge: burned into the canvas, so it appears
+         on every slide and in every recording. Toggle in the options strip. ---- */
+  /* ---- Webcam bubble: drawn into the canvas, so it records into the video.
+         Draggable with any tool. Default: bottom-left corner. ---- */
+  const cam = {
+    on: false, stream: null,
+    video: document.createElement('video'),
+    cx: 150, cy: H - 150, r: 110,
+    drag: null
+  };
+  cam.video.autoplay = true; cam.video.muted = true; cam.video.playsInline = true;
+
+  async function startCam(){
+    try {
+      cam.stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480, facingMode: 'user' }
+      });
+      cam.video.srcObject = cam.stream;
+      await cam.video.play().catch(() => {});
+      cam.on = true;
+      toast('📷 Camera on — drag the bubble anywhere. It records into your video.');
+    } catch (err){
+      cam.on = false;
+      document.getElementById('camToggle').checked = false;
+      toast('Camera unavailable or blocked. (Works when opened as a local file / hosted page.)', 4500);
+    }
+  }
+  function stopCam(){
+    if (cam.stream) cam.stream.getTracks().forEach(t => t.stop());
+    cam.stream = null; cam.video.srcObject = null;
+    cam.on = false; cam.drag = null;
+  }
+  document.getElementById('camToggle').addEventListener('change', e =>
+    e.target.checked ? startCam() : stopCam());
+
+  function drawCam(c){
+    if (!cam.on || cam.video.readyState < 2) return;
+    const vw = cam.video.videoWidth, vh = cam.video.videoHeight;
+    if (!vw || !vh) return;
+    c.save();
+    c.beginPath();
+    c.arc(cam.cx, cam.cy, cam.r, 0, Math.PI * 2);
+    c.clip();
+    const s = Math.max((cam.r*2) / vw, (cam.r*2) / vh);   // cover fit
+    c.translate(cam.cx, cam.cy);
+    c.scale(-1, 1);                                       // mirror, selfie style
+    c.drawImage(cam.video, -vw*s/2, -vh*s/2, vw*s, vh*s);
+    c.restore();
+    c.save();                                             // brass ring
+    c.strokeStyle = '#e8b44a';
+    c.lineWidth = 5;
+    c.beginPath();
+    c.arc(cam.cx, cam.cy, cam.r, 0, Math.PI * 2);
+    c.stroke();
+    c.restore();
+  }
+
+  let showBadge = true;
+  const BADGE_TEXT = 'DAMSAN Katruvel School';
+  const schoolLogo = new Image();          // embedded emblem, transparent bg
+  let logoReady = false;
+  schoolLogo.onload = () => { logoReady = true; };
+  schoolLogo.src = 'data:image/png;base64,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';
+  function drawLowerThird(c){
+    c.save();
+    c.font = "800 26px 'Bitter', Georgia, serif";
+    c.textAlign = 'left';
+    c.textBaseline = 'middle';
+    const tw = c.measureText(BADGE_TEXT).width;
+    const h = 52, x = 40, y = 26, r = 10;
+    const lh = 40, lw = logoReady ? lh * (schoolLogo.width / schoolLogo.height) : 0;
+    const w = 7 + 14 + lw + 12 + tw + 22;
+    // band
+    c.fillStyle = 'rgba(8,20,29,0.85)';
+    c.beginPath();
+    if (c.roundRect) c.roundRect(x, y, w, h, r);
+    else c.rect(x, y, w, h);
+    c.fill();
+    // brass rule at the left edge
+    c.fillStyle = '#e8b44a';
+    c.beginPath();
+    if (c.roundRect) c.roundRect(x, y, 7, h, [r, 0, 0, r]);
+    else c.rect(x, y, 7, h);
+    c.fill();
+    // logo + name
+    if (logoReady) c.drawImage(schoolLogo, x + 7 + 14, y + (h - lh)/2, lw, lh);
+    c.fillStyle = '#f2ede2';
+    c.fillText(BADGE_TEXT, x + 7 + 14 + lw + 12, y + h/2 + 1);
+    c.restore();
+  }
+
+  function frame(){
+    const now = performance.now();
+    drawPaper(ctx);
+    for (const im of images) ctx.drawImage(currentBitmap(im, now), im.x, im.y, im.w, im.h);
+    ctx.drawImage(ink, 0, 0);
+    if (showBadge) drawLowerThird(ctx);
+    drawCam(ctx);
+
+    // Live preview: shapes while dragging, and the whole highlighter stroke
+    // in one pass (prevents dark blobs where translucent segments overlap).
+    if (current && current.tool !== 'pen' && current.tool !== 'eraser'){
+      renderStroke(current, ctx);
+    }
+
+    // Tool indicator at the pointer (the cursor itself is hidden for these tools)
+    if (hoverPos){
+      if (tool === 'eraser'){
+        const r = size * 2; // matches eraser lineWidth = size*4
+        ctx.save();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(11,29,42,0.9)';
+        ctx.beginPath(); ctx.arc(hoverPos.x, hoverPos.y, r + 1.5, 0, Math.PI*2); ctx.stroke();
+        ctx.strokeStyle = 'rgba(242,237,226,0.95)';
+        ctx.beginPath(); ctx.arc(hoverPos.x, hoverPos.y, r, 0, Math.PI*2); ctx.stroke();
+        ctx.restore();
+      } else if (tool === 'laser'){
+        ctx.save();
+        ctx.fillStyle = '#ff5a52';
+        ctx.shadowColor = '#ff5a52';
+        ctx.shadowBlur = 14;
+        ctx.beginPath(); ctx.arc(hoverPos.x, hoverPos.y, 6, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+      } else if (tool === 'highlighter'){
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = color;
+        ctx.beginPath(); ctx.arc(hoverPos.x, hoverPos.y, size * 1.5, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // laser trail (fades over 800 ms)
+    laserTrail = laserTrail.filter(p => now - p.t < 800);
+    for (const p of laserTrail){
+      const a = 1 - (now - p.t)/800;
+      ctx.save();
+      ctx.globalAlpha = a * 0.9;
+      ctx.fillStyle = '#ff5a52';
+      ctx.shadowColor = '#ff5a52';
+      ctx.shadowBlur = 18;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+    // selection handles for the select tool
+    if (selectedShape && tool === 'select'){
+      const b = strokeBBox(selectedShape);
+      if (b){
+        ctx.save();
+        ctx.strokeStyle = '#e8b44a';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8,5]);
+        ctx.strokeRect(b.x - 6, b.y - 6, b.w + 12, b.h + 12);
+        ctx.setLineDash([]);
+        if (selectedShape.tool !== 'text'){               // resize handle
+          ctx.fillStyle = '#e8b44a';
+          ctx.beginPath(); ctx.arc(b.x + b.w, b.y + b.h, 10, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.fillStyle = '#ff5a52';                        // delete handle
+        ctx.beginPath(); ctx.arc(b.x + b.w, b.y, 10, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#0b1d2a';
+        ctx.font = 'bold 13px sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('✕', b.x + b.w, b.y + 1);
+        ctx.restore();
+      }
+    }
+    if (selectedImg && tool === 'select'){
+      const im = selectedImg;
+      ctx.save();
+      ctx.strokeStyle = '#e8b44a';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8,5]);
+      ctx.strokeRect(im.x, im.y, im.w, im.h);
+      ctx.setLineDash([]);
+      // resize handle (bottom-right)
+      ctx.fillStyle = '#e8b44a';
+      ctx.beginPath(); ctx.arc(im.x+im.w, im.y+im.h, 10, 0, Math.PI*2); ctx.fill();
+      // delete handle (top-right)
+      ctx.fillStyle = '#ff5a52';
+      ctx.beginPath(); ctx.arc(im.x+im.w, im.y, 10, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#0b1d2a';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('✕', im.x+im.w, im.y+1);
+      ctx.restore();
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  /* ================= Pointer handling ================= */
+  board.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    board.setPointerCapture(e.pointerId);
+    const p = pos(e);
+
+    // webcam bubble drag beats every tool — it's the top overlay
+    if (cam.on && Math.hypot(p.x - cam.cx, p.y - cam.cy) <= cam.r){
+      cam.drag = { dx: p.x - cam.cx, dy: p.y - cam.cy };
+      board.style.cursor = 'grabbing';
+      return;
+    }
+
+    if (tool === 'select'){
+      const HR = 18;
+      const near = (a,b) => Math.hypot(p.x-a, p.y-b) < HR;
+      if (selectedShape){
+        const b = strokeBBox(selectedShape);
+        if (b && near(b.x + b.w, b.y)){                   // delete handle
+          strokes.splice(strokes.indexOf(selectedShape), 1);
+          selectedShape = null;
+          rebuildInk();
+          touchSlide();
+          toast('Shape removed.');
+          return;
+        }
+        if (b && selectedShape.tool !== 'text' && near(b.x + b.w, b.y + b.h)){
+          shapeAction = { mode: 'resize' };               // resize handle
+          return;
+        }
+      }
+      if (selectedImg){
+        const im = selectedImg;
+        if (near(im.x+im.w, im.y)){                       // delete handle
+          images.splice(images.indexOf(im), 1);
+          selectedImg = null;
+          touchSlide();
+          toast('Image removed.');
+          return;
+        }
+        if (near(im.x+im.w, im.y+im.h)){                  // resize handle
+          imgAction = { mode: 'resize' };
+          return;
+        }
+      }
+      // ink sits above images, so shapes get hit priority
+      const hs = shapeAt(p);
+      if (hs){
+        selectedShape = hs; selectedImg = null;
+        shapeAction = { mode: 'move', lx: p.x, ly: p.y };
+        board.style.cursor = 'grabbing';
+        return;
+      }
+      const hit = imageAt(p);
+      if (hit){
+        selectedImg = hit; selectedShape = null;
+        imgAction = { mode: 'move', dx: p.x - hit.x, dy: p.y - hit.y };
+        board.style.cursor = 'grabbing';
+      } else {
+        selectedImg = null; selectedShape = null;
+      }
+      return;
+    }
+
+    if (tool === 'laser'){ drawing = true; laserTrail.push({...p, t: performance.now()}); return; }
+
+    if (tool === 'text'){
+      pendingText = p;
+      textInput.value = '';
+      textModal.show();
+      setTimeout(() => textInput.focus(), 350);
+      return;
+    }
+
+    drawing = true;
+    redoStack = [];
+    if (tool === 'pen' || tool === 'highlighter' || tool === 'eraser'){
+      current = { tool, color, size, points: [p] };
+      if (tool !== 'highlighter') renderStroke(current, ictx); // dot immediately
+    } else {
+      current = { tool, color, size, x0: p.x, y0: p.y, x1: p.x, y1: p.y };
+    }
+  });
+
+  board.addEventListener('pointermove', e => {
+    const p = pos(e);
+    hoverPos = p;
+
+    if (cam.drag){
+      cam.cx = Math.min(W - cam.r, Math.max(cam.r, p.x - cam.drag.dx));
+      cam.cy = Math.min(H - cam.r, Math.max(cam.r, p.y - cam.drag.dy));
+      return;
+    }
+    if (cam.on && !drawing && !shapeAction && !imgAction &&
+        Math.hypot(p.x - cam.cx, p.y - cam.cy) <= cam.r){
+      board.style.cursor = 'grab';
+      return;
+    }
+    if (cam.on && !drawing && !shapeAction && !imgAction && tool !== 'select'){
+      board.style.cursor = CURSORS[tool] || 'crosshair';   // restore after leaving bubble
+    }
+
+    // context-aware cursor for the select tool
+    if (tool === 'select' && !shapeAction && !imgAction){
+      board.style.cursor = selectCursorFor(p);
+    }
+
+    if (tool === 'select' && shapeAction && selectedShape){
+      if (shapeAction.mode === 'move'){
+        moveStroke(selectedShape, p.x - shapeAction.lx, p.y - shapeAction.ly);
+        shapeAction.lx = p.x; shapeAction.ly = p.y;
+      } else {                                            // resize by dragging corner
+        selectedShape.x1 = p.x;
+        selectedShape.y1 = p.y;
+      }
+      rebuildInk();
+      return;
+    }
+
+    if (tool === 'select' && imgAction && selectedImg){
+      const im = selectedImg;
+      if (imgAction.mode === 'move'){
+        im.x = p.x - imgAction.dx;
+        im.y = p.y - imgAction.dy;
+      } else {                                            // resize, keep aspect
+        const aspect = im.w / im.h;
+        im.w = Math.max(60, p.x - im.x);
+        im.h = im.w / aspect;
+      }
+      return;
+    }
+
+    if (!drawing) return;
+    if (tool === 'laser'){ laserTrail.push({...p, t: performance.now()}); return; }
+    if (!current) return;
+
+    if (current.points){
+      current.points.push(p);
+      if (current.tool === 'highlighter') return; // drawn as live preview, committed once at the end
+      // incremental segment straight onto ink layer (fast)
+      const n = current.points.length;
+      ictx.save();
+      strokeStyleFor(current, ictx);
+      ictx.beginPath();
+      ictx.moveTo(current.points[n-2].x, current.points[n-2].y);
+      ictx.lineTo(p.x, p.y);
+      ictx.stroke();
+      ictx.restore();
+    } else {
+      current.x1 = p.x; current.y1 = p.y;
+    }
+  });
+
+  function endStroke(){
+    if (cam.drag){ cam.drag = null; board.style.cursor = 'grab'; return; }
+    if (shapeAction){ shapeAction = null; touchSlide(); if (hoverPos) board.style.cursor = selectCursorFor(hoverPos); return; }
+    if (imgAction){ imgAction = null; touchSlide(); if (hoverPos) board.style.cursor = selectCursorFor(hoverPos); return; }
+    if (!drawing) return;
+    drawing = false;
+    if (tool === 'laser'){ return; }
+    if (!current) return;
+    if (current.points && current.tool !== 'highlighter'){
+      strokes.push(current);          // pen/eraser already on ink layer
+    } else {
+      strokes.push(current);
+      renderStroke(current, ictx);    // commit shape or highlighter in one pass
+    }
+    current = null;
+    touchSlide();
+  }
+  board.addEventListener('pointerup', endStroke);
+  board.addEventListener('pointercancel', endStroke);
+  board.addEventListener('pointerleave', () => { hoverPos = null; });
+
+  /* ================= Text tool ================= */
+  const textModal = new bootstrap.Modal('#textModal');
+  const textInput = document.getElementById('textInput');
+  let pendingText = null;
+  document.getElementById('textOk').addEventListener('click', commitText);
+  textInput.addEventListener('keydown', e => { if (e.key === 'Enter') commitText(); });
+  function commitText(){
+    const t = textInput.value.trim();
+    if (t && pendingText){
+      const selVal = document.getElementById('textSizeSel').value;
+      const fontPx = selVal === 'default' ? settings.fontPx : (+selVal || 48);
+      let ty = pendingText.y;
+      if (bgMode === 'ruled'){
+        // snap so the text sits ON the nearest ruled line, like handwriting
+        const line = RULE_START + Math.round((ty - RULE_START) / RULE_GAP) * RULE_GAP;
+        ty = Math.max(fontPx/2 + 4, Math.min(H - 10, line - fontPx/2 + 6));
+      }
+      const s = { tool:'text', color, fontPx, x: pendingText.x, y: ty, text: t };
+      strokes.push(s);
+      renderStroke(s, ictx);
+      redoStack = [];
+      touchSlide();
+    }
+    pendingText = null;
+    textModal.hide();
+  }
+
+  /* ================= Undo / Redo / Clear ================= */
+  document.getElementById('btnUndo').addEventListener('click', undo);
+  document.getElementById('btnRedo').addEventListener('click', redo);
+  function undo(){
+    if (!strokes.length) return;
+    redoStack.push(strokes.pop());
+    selectedShape = null; shapeAction = null;
+    rebuildInk();
+    touchSlide();
+  }
+  function redo(){
+    if (!redoStack.length) return;
+    strokes.push(redoStack.pop());
+    selectedShape = null; shapeAction = null;
+    rebuildInk();
+    touchSlide();
+  }
+  const clearModal = new bootstrap.Modal('#clearModal');
+  document.getElementById('btnClear').addEventListener('click', () => clearModal.show());
+  document.getElementById('clearOk').addEventListener('click', () => {
+    strokes = []; redoStack = [];
+    selectedShape = null; shapeAction = null;
+    rebuildInk();
+    touchSlide();
+    clearModal.hide();
+  });
+
+  /* ================= Slides ================= */
+  const strip = document.getElementById('slideStrip');
+  const thumbFull = document.createElement('canvas');   // reusable full-res buffer
+  thumbFull.width = W; thumbFull.height = H;
+  const tfctx = thumbFull.getContext('2d');
+  const THUMB_W = 192, THUMB_H = 108;                    // 2x for crisp strip
+
+  function syncToSlide(){
+    slides[activeSlide] = { strokes, redoStack, bgMode, images, boardColor };
+  }
+  function touchSlide(){        // call after any change to the active slide
+    syncToSlide();
+    updateThumb(activeSlide);
+  }
+
+  function updateThumb(i){
+    const tab = strip.querySelector(`.slide-tab[data-i="${i}"] canvas`);
+    if (!tab) return;
+    const s = slides[i];
+    drawPaper(tfctx, s.bgMode, s.boardColor || DEFAULT_BOARD);
+    for (const im of (s.images || [])){
+      tfctx.drawImage(im.frames ? im.frames[0].bmp : im.bmp, im.x, im.y, im.w, im.h);
+    }
+    if (i === activeSlide){
+      tfctx.drawImage(ink, 0, 0);                        // fast path: live ink layer
+    } else {
+      for (const st of s.strokes) renderStroke(st, tfctx);
+    }
+    if (showBadge) drawLowerThird(tfctx);
+    const tc = tab.getContext('2d');
+    tc.clearRect(0, 0, THUMB_W, THUMB_H);
+    tc.drawImage(thumbFull, 0, 0, THUMB_W, THUMB_H);
+  }
+
+  function renderStrip(){
+    strip.innerHTML = '';
+    slides.forEach((s, i) => {
+      const tab = document.createElement('button');
+      tab.className = 'slide-tab' + (i === activeSlide ? ' active' : '');
+      tab.dataset.i = i;
+      tab.title = 'Slide ' + (i + 1) + '  (PgUp/PgDn to move)';
+      const cv = document.createElement('canvas');
+      cv.width = THUMB_W; cv.height = THUMB_H;
+      tab.appendChild(cv);
+      const num = document.createElement('span');
+      num.className = 'slide-num';
+      num.textContent = i + 1;
+      tab.appendChild(num);
+      if (slides.length > 1){
+        const del = document.createElement('span');
+        del.className = 'slide-del';
+        del.textContent = '✕';
+        del.style.display = '';
+        del.title = 'Delete slide';
+        del.addEventListener('click', e => { e.stopPropagation(); askDeleteSlide(i); });
+        tab.appendChild(del);
+      }
+      tab.addEventListener('click', () => switchSlide(i));
+      strip.appendChild(tab);
+    });
+    const add = document.createElement('button');
+    add.className = 'slide-add';
+    add.textContent = '＋';
+    add.title = 'Add slide';
+    add.addEventListener('click', addSlide);
+    strip.appendChild(add);
+    slides.forEach((_, i) => updateThumb(i));
+  }
+
+  function loadSlide(i){
+    activeSlide = i;
+    const s = slides[i];
+    strokes = s.strokes; redoStack = s.redoStack; bgMode = s.bgMode;
+    boardColor = s.boardColor || DEFAULT_BOARD;
+    images = s.images || (s.images = []);
+    selectedImg = null; imgAction = null;
+    selectedShape = null; shapeAction = null;
+    document.querySelectorAll('.bg-btn').forEach(x =>
+      x.classList.toggle('active', x.dataset.bg === bgMode));
+    document.querySelectorAll('.board-swatch').forEach(x =>
+      x.classList.toggle('active', x.dataset.board === boardColor));
+    rebuildInk();
+  }
+
+  function switchSlide(i){
+    if (i === activeSlide || i < 0 || i >= slides.length) return;
+    syncToSlide();
+    updateThumb(activeSlide);
+    loadSlide(i);
+    strip.querySelectorAll('.slide-tab').forEach(t =>
+      t.classList.toggle('active', +t.dataset.i === i));
+    updateThumb(i);
+    const tab = strip.querySelector(`.slide-tab[data-i="${i}"]`);
+    if (tab) tab.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+  }
+
+  function addSlide(){
+    syncToSlide();
+    slides.push({ strokes: [], redoStack: [], bgMode, images: [], boardColor });  // inherit current paper & board
+    activeSlide = slides.length - 1;
+    loadSlide(activeSlide);
+    renderStrip();
+    toast('Slide ' + slides.length + ' added.');
+  }
+
+  const delSlideModal = new bootstrap.Modal('#delSlideModal');
+  let slideToDelete = null;
+  function askDeleteSlide(i){
+    slideToDelete = i;
+    document.getElementById('delSlideMsg').textContent =
+      'Delete slide ' + (i + 1) + '? Its drawings are lost.';
+    delSlideModal.show();
+  }
+  document.getElementById('delSlideOk').addEventListener('click', () => {
+    if (slideToDelete === null) return;
+    syncToSlide();
+    slides.splice(slideToDelete, 1);
+    if (activeSlide >= slides.length) activeSlide = slides.length - 1;
+    else if (slideToDelete < activeSlide) activeSlide--;
+    loadSlide(activeSlide);
+    renderStrip();
+    slideToDelete = null;
+    delSlideModal.hide();
+  });
+
+  renderStrip();
+
+  // Preload the handwriting font, then re-render any text committed before it arrived
+  if (document.fonts && document.fonts.load){
+    Promise.all([
+      document.fonts.load("700 48px Kalam"),
+      document.fonts.load("400 48px Kalam")
+    ]).then(() => {
+      rebuildInk();
+      slides.forEach((_, i) => updateThumb(i));
+    }).catch(() => {});
+  }
+
+  // School badge toggle — refresh thumbnails so they match the board
+  document.getElementById('badgeToggle').addEventListener('change', e => {
+    showBadge = e.target.checked;
+    syncToSlide();
+    slides.forEach((_, i) => updateThumb(i));
+    toast(showBadge ? 'School badge shown on all slides.' : 'School badge hidden.');
+  });
+
+  /* ================= Images & animated GIFs ================= */
+  function imageAt(p){
+    for (let i = images.length - 1; i >= 0; i--){
+      const im = images[i];
+      if (p.x >= im.x && p.x <= im.x + im.w && p.y >= im.y && p.y <= im.y + im.h) return im;
+    }
+    return null;
+  }
+
+  async function decodeGifFrames(buf){
+    // Chrome/Edge: full GIF animation via ImageDecoder. Elsewhere: null → static first frame.
+    if (!('ImageDecoder' in window)) return null;
+    try {
+      const dec = new ImageDecoder({ data: buf, type: 'image/gif' });
+      await dec.tracks.ready;
+      const count = dec.tracks.selectedTrack.frameCount;
+      if (count <= 1){ dec.close?.(); return null; }
+      const frames = [];
+      for (let i = 0; i < count; i++){
+        const { image } = await dec.decode({ frameIndex: i });
+        const bmp = await createImageBitmap(image);
+        frames.push({ bmp, dur: Math.max(20, (image.duration || 100000) / 1000) }); // µs → ms
+        image.close();
+      }
+      dec.close?.();
+      return frames;
+    } catch (_){ return null; }
+  }
+
+  async function addImageFromBlob(blob, atX, atY){
+    if (!blob || !blob.type.startsWith('image/')){ toast('That file is not an image.'); return; }
+    try {
+      let frames = null;
+      if (blob.type === 'image/gif'){
+        frames = await decodeGifFrames(await blob.arrayBuffer());
+        if (!frames && !('ImageDecoder' in window))
+          toast('This browser can\'t animate GIFs on canvas — showing the first frame.');
+      }
+      const bmp = frames ? frames[0].bmp : await createImageBitmap(blob);
+      let w = bmp.width, h = bmp.height;
+      const sc = Math.min(1, (W * 0.45) / w, (H * 0.45) / h);
+      w *= sc; h *= sc;
+      const im = {
+        x: (atX ?? W / 2) - w / 2,
+        y: (atY ?? H / 2) - h / 2,
+        w, h, bmp, frames,
+        totalDur: frames ? frames.reduce((a, f) => a + f.dur, 0) : 0,
+        start: performance.now()
+      };
+      images.push(im);
+      selectedImg = im;
+      selectTool('select');
+      touchSlide();
+      toast(frames
+        ? '🎞️ Animated GIF placed — it plays on the board and records into your video.'
+        : '🖼️ Image placed — drag to move, brass dot to resize, red ✕ to remove.');
+    } catch (err){
+      toast('Could not load that image: ' + err.message);
+    }
+  }
+
+  // Rail button → file picker
+  const imgInput = document.getElementById('imgInput');
+  document.getElementById('btnImage').addEventListener('click', () => imgInput.click());
+  imgInput.addEventListener('change', () => {
+    if (imgInput.files[0]) addImageFromBlob(imgInput.files[0]);
+    imgInput.value = '';
+  });
+
+  // Drag & drop onto the board — image lands where you drop it
+  board.addEventListener('dragover', e => e.preventDefault());
+  board.addEventListener('drop', e => {
+    e.preventDefault();
+    const f = [...(e.dataTransfer.files || [])].find(f => f.type.startsWith('image/'));
+    if (f){ const p = pos(e); addImageFromBlob(f, p.x, p.y); }
+  });
+
+  // Ctrl+V paste (e.g. a screenshot of a textbook problem)
+  document.addEventListener('paste', e => {
+    if (e.target === textInput) return;
+    const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith('image/'));
+    if (item){ e.preventDefault(); addImageFromBlob(item.getAsFile()); }
+  });
+
+  /* ================= Fullscreen ================= */
+  const btnFullscreen = document.getElementById('btnFullscreen');
+  function toggleFullscreen(){
+    if (document.fullscreenElement){
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen().catch(() =>
+        toast('Fullscreen was blocked by the browser.'));
+    }
+  }
+  btnFullscreen.addEventListener('click', toggleFullscreen);
+  document.addEventListener('fullscreenchange', () => {
+    const fs = !!document.fullscreenElement;
+    btnFullscreen.textContent = fs ? '⛶ Exit' : '⛶';
+    btnFullscreen.title = fs ? 'Exit fullscreen (F or Esc)' : 'Fullscreen (F)';
+  });
+
+  /* ================= Math formulas (MathJax → canvas) ================= */
+  const formulaModal = new bootstrap.Modal('#formulaModal');
+  const latexInput = document.getElementById('latexInput');
+  const latexPreview = document.getElementById('latexPreview');
+  let editingFormula = null;
+
+  // [label, latex snippet, caret offset within snippet (optional)]
+  const MATH_KEYS = [
+    ['Operators', [
+      ['±','\\pm '],['×','\\times '],['÷','\\div '],['·','\\cdot '],['≠','\\neq '],
+      ['≤','\\leq '],['≥','\\geq '],['≈','\\approx '],['∞','\\infty '],['%','\\% ']
+    ]],
+    ['Structures', [
+      ['a⁄b','\\frac{}{}',6],['√','\\sqrt{}',6],['ⁿ√','\\sqrt[]{}',6],['x²','^{2}'],
+      ['xⁿ','^{}',2],['x₁','_{}',2],['( )','\\left(\\right)',6],['|x|','\\left|\\right|',6]
+    ]],
+    ['Geometry & Trig', [
+      ['°','^{\\circ}'],['∠','\\angle '],['△','\\triangle '],['⊥','\\perp '],['∥','\\parallel '],
+      ['≅','\\cong '],['∼','\\sim '],['sin','\\sin '],['cos','\\cos '],['tan','\\tan ']
+    ]],
+    ['Greek', [
+      ['π','\\pi '],['θ','\\theta '],['α','\\alpha '],['β','\\beta '],['Δ','\\Delta '],
+      ['δ','\\delta '],['λ','\\lambda '],['μ','\\mu '],['σ','\\sigma '],['ω','\\omega ']
+    ]],
+    ['Advanced', [
+      ['Σ','\\sum_{i=1}^{n} '],['∫','\\int_{}^{} ',6],['lim','\\lim_{x \\to }',12],
+      ['d/dx','\\frac{d}{dx} '],['log','\\log '],['ln','\\ln '],['→','\\to '],
+      ['∴','\\therefore '],['vec','\\vec{}',5],['x̄','\\overline{}',10]
+    ]]
+  ];
+  const mkRoot = document.getElementById('mathKeyboard');
+  MATH_KEYS.forEach(([name, keys]) => {
+    const g = document.createElement('div'); g.className = 'mk-group';
+    const l = document.createElement('div'); l.className = 'mk-label'; l.textContent = name;
+    const grid = document.createElement('div'); grid.className = 'mk-grid';
+    keys.forEach(([label, ins, caret]) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'mk-key'; b.textContent = label;
+      b.addEventListener('click', () => insertSnippet(ins, caret));
+      grid.appendChild(b);
+    });
+    g.appendChild(l); g.appendChild(grid); mkRoot.appendChild(g);
+  });
+
+  function insertSnippet(text, caret){
+    const s = latexInput.selectionStart, e = latexInput.selectionEnd;
+    latexInput.value = latexInput.value.slice(0, s) + text + latexInput.value.slice(e);
+    const posN = s + (caret !== undefined ? caret : text.length);
+    latexInput.focus();
+    latexInput.setSelectionRange(posN, posN);
+    schedulePreview();
+  }
+
+  let previewTimer = null;
+  function schedulePreview(){ clearTimeout(previewTimer); previewTimer = setTimeout(renderPreview, 220); }
+  latexInput.addEventListener('input', schedulePreview);
+
+  async function renderPreview(){
+    const tex = latexInput.value.trim();
+    if (!tex){ latexPreview.innerHTML = '<span class="pv-hint">Preview appears here…</span>'; return; }
+    try {
+      await MathJax.startup.promise;
+      const node = MathJax.tex2svg(tex, { display: true });
+      const errEl = node.querySelector('[data-mjx-error]');
+      if (errEl){
+        latexPreview.innerHTML = '<span class="pv-err">' +
+          (errEl.getAttribute('data-mjx-error') || 'Invalid LaTeX') + '</span>';
+        return;
+      }
+      node.style.color = color;                            // preview in chosen chalk colour
+      latexPreview.innerHTML = '';
+      latexPreview.appendChild(node);
+    } catch (err){
+      latexPreview.innerHTML = '<span class="pv-err">Math engine still loading…</span>';
+    }
+  }
+
+  async function latexToBitmap(tex, col){
+    await MathJax.startup.promise;
+    const node = MathJax.tex2svg(tex, { display: true });
+    const svg = node.querySelector('svg');
+    const errEl = svg.querySelector('[data-mjx-error]');
+    if (errEl) throw new Error(errEl.getAttribute('data-mjx-error') || 'invalid LaTeX');
+    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    const src = new XMLSerializer().serializeToString(svg).split('currentColor').join(col);
+    const img = new Image();
+    await new Promise((res, rej) => {
+      img.onload = res;
+      img.onerror = () => rej(new Error('SVG rasterize failed'));
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(src);
+    });
+    const scale = 3;                                       // 3× raster → crisp when resized up
+    const cw = Math.max(2, Math.round(img.width * scale));
+    const ch = Math.max(2, Math.round(img.height * scale));
+    const oc = document.createElement('canvas');
+    oc.width = cw; oc.height = ch;
+    oc.getContext('2d').drawImage(img, 0, 0, cw, ch);
+    return { bmp: await createImageBitmap(oc), natW: img.width, natH: img.height };
+  }
+
+  const fmSize = document.getElementById('fmSize');
+  const fmSizeVal = document.getElementById('fmSizeVal');
+  function applyPreviewScale(){
+    fmSizeVal.textContent = fmSize.value + ' px';
+    latexPreview.style.fontSize = (fmSize.value / 20) + 'rem';  // scale preview ≈ board size
+  }
+  fmSize.addEventListener('input', applyPreviewScale);
+
+  function openFormulaModal(forEdit){
+    editingFormula = forEdit || null;
+    document.getElementById('formulaTitle').textContent =
+      editingFormula ? 'Edit math formula' : 'Insert math formula';
+    document.getElementById('formulaOk').textContent =
+      editingFormula ? 'Update formula' : 'Place formula';
+    latexInput.value = editingFormula ? editingFormula.latex : '';
+    fmSize.value = editingFormula?.fontPx || settings.formulaPx;
+    applyPreviewScale();
+    renderPreview();
+    formulaModal.show();
+    setTimeout(() => latexInput.focus(), 350);
+  }
+  document.getElementById('btnFormula').addEventListener('click', () => openFormulaModal());
+
+  document.getElementById('formulaOk').addEventListener('click', async () => {
+    const tex = latexInput.value.trim();
+    if (!tex){ toast('Type or build a formula first.'); return; }
+    try {
+      const { bmp, natW, natH } = await latexToBitmap(tex, color);
+      const px = +fmSize.value || settings.formulaPx;
+      // natural render is at a ~20px em height → px/20 gives the size multiplier
+      let h = Math.max(24, natH * (px / 20));
+      let w = h * (natW / natH);
+      if (w > W * 0.85){ w = W * 0.85; h = w * (natH / natW); }
+      if (h > H * 0.8){ h = H * 0.8; w = h * (natW / natH); }
+      if (editingFormula){
+        editingFormula.bmp = bmp;
+        editingFormula.w = w;
+        editingFormula.h = h;
+        editingFormula.latex = tex;
+        editingFormula.fontPx = px;
+        selectedImg = editingFormula;
+      } else {
+        const im = { x: W/2 - w/2, y: H/2 - h/2, w, h, bmp,
+                     frames: null, totalDur: 0, start: 0, latex: tex, fontPx: px };
+        images.push(im);
+        selectedImg = im;
+      }
+      editingFormula = null;
+      formulaModal.hide();
+      selectTool('select');
+      touchSlide();
+      toast('∑ Formula placed — drag to position, corner dot to resize, double-click to edit.');
+    } catch (err){
+      toast('Could not render formula: ' + err.message, 4500);
+    }
+  });
+
+  // Double-click a placed formula with the hand tool to edit its LaTeX
+  board.addEventListener('dblclick', e => {
+    if (tool !== 'select') return;
+    const im = imageAt(pos(e));
+    if (im && im.latex) openFormulaModal(im);
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.target === textInput || e.target === latexInput) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z'){ e.preventDefault(); undo(); }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y'){ e.preventDefault(); redo(); }
+    if (e.key === 'PageUp'){ e.preventDefault(); switchSlide(activeSlide - 1); }
+    if (e.key === 'PageDown'){ e.preventDefault(); switchSlide(activeSlide + 1); }
+    if (!e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'm'){ e.preventDefault(); openFormulaModal(); }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && tool === 'select'){
+      if (selectedShape){
+        e.preventDefault();
+        strokes.splice(strokes.indexOf(selectedShape), 1);
+        selectedShape = null;
+        rebuildInk();
+        touchSlide();
+        toast('Shape removed.');
+      } else if (selectedImg){
+        e.preventDefault();
+        images.splice(images.indexOf(selectedImg), 1);
+        selectedImg = null;
+        touchSlide();
+        toast('Image removed.');
+      }
+    }
+    const map = { v:'select', p:'pen', h:'highlighter', e:'eraser', l:'laser', t:'text' };
+    if (!e.ctrlKey && !e.metaKey && map[e.key.toLowerCase()]) selectTool(map[e.key.toLowerCase()]);
+    if (!e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 's'){ e.preventDefault(); toggleShapePanel(); }
+    if (!e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'f'){ e.preventDefault(); toggleFullscreen(); }
+  });
+
+  /* ================= Toolbar UI ================= */
+  // Per-tool cursors. Pen gets a chalk-pencil SVG cursor (hotspot at the tip);
+  // eraser/laser/highlighter hide the cursor and rely on the canvas indicator,
+  // so what you see is the exact spot and width the tool will act on.
+  function svgCursor(svg, hx, hy){
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${hx} ${hy}, crosshair`;
+  }
+  const penSVG =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26">` +
+    `<path d="M4 22 L5.2 17.6 L18.4 4.4 A2.3 2.3 0 0 1 21.6 7.6 L8.4 20.8 Z" ` +
+    `fill="#f2ede2" stroke="#0b1d2a" stroke-width="1.4"/>` +
+    `<path d="M4 22 L5.2 17.6 L8.4 20.8 Z" fill="#e8b44a" stroke="#0b1d2a" stroke-width="1"/></svg>`;
+  const CURSORS = {
+    select:      'default',
+    pen:         svgCursor(penSVG, 4, 22),
+    highlighter: 'none',
+    eraser:      'none',
+    laser:       'none',
+    text:        'text',
+    line:        'crosshair',
+    arrow:       'crosshair',
+    rect:        'crosshair',
+    circle:      'crosshair'
+  };
+  function selectTool(t){
+    tool = t;
+    document.querySelectorAll('.tool-btn[data-tool]').forEach(b =>
+      b.classList.toggle('active', b.dataset.tool === t));
+    btnShapes.classList.toggle('active', SHAPE_TOOLS.has(t));
+    document.querySelectorAll('.shape-chip').forEach(ch =>
+      ch.classList.toggle('active', ch.dataset.shape === t));
+    board.style.cursor = CURSORS[t] || 'crosshair';
+  }
+  document.querySelectorAll('.tool-btn[data-tool]').forEach(b =>
+    b.addEventListener('click', () => selectTool(b.dataset.tool)));
+
+  /* ---- Shapes flyout ---- */
+  const btnShapes = document.getElementById('btnShapes');
+  const shapePanel = document.getElementById('shapePanel');
+  function toggleShapePanel(force){
+    const show = force !== undefined ? force : shapePanel.hidden;
+    shapePanel.hidden = !show;
+    if (show){
+      const r = btnShapes.getBoundingClientRect();
+      shapePanel.style.top = Math.max(10,
+        Math.min(r.top - 40, window.innerHeight - shapePanel.offsetHeight - 10)) + 'px';
+    }
+  }
+  btnShapes.addEventListener('click', e => { e.stopPropagation(); toggleShapePanel(); });
+  document.querySelectorAll('.shape-chip').forEach(ch =>
+    ch.addEventListener('click', () => {
+      selectTool(ch.dataset.shape);
+      toggleShapePanel(false);
+    }));
+  document.addEventListener('click', e => {
+    if (!shapePanel.hidden && !shapePanel.contains(e.target)) toggleShapePanel(false);
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !shapePanel.hidden) toggleShapePanel(false);
+  });
+
+  selectTool('pen'); // apply pen cursor on load
+
+  function pickColor(cl){
+    color = cl;
+    document.querySelectorAll('.swatch').forEach(x =>
+      x.classList.toggle('active', x.dataset.color === cl));
+  }
+  document.querySelectorAll('.swatch').forEach(b =>
+    b.addEventListener('click', () => pickColor(b.dataset.color)));
+
+  document.querySelectorAll('.board-swatch').forEach(b =>
+    b.addEventListener('click', () => {
+      boardColor = b.dataset.board;
+      document.querySelectorAll('.board-swatch').forEach(x => x.classList.toggle('active', x === b));
+      // keep the chalk readable: swap white↔ink automatically when contrast dies
+      if (isLight(boardColor) && color === '#f2ede2'){
+        pickColor('#20262b');
+        toast('White board — switched chalk to ink black so writing stays visible.');
+      } else if (!isLight(boardColor) && color === '#20262b'){
+        pickColor('#f2ede2');
+        toast('Dark board — switched ink back to chalk white.');
+      }
+      touchSlide();
+    }));
+
+  document.querySelectorAll('.size-btn').forEach(b =>
+    b.addEventListener('click', () => {
+      size = +b.dataset.size;
+      document.querySelectorAll('.size-btn').forEach(x => x.classList.toggle('active', x === b));
+    }));
+
+  document.querySelectorAll('.bg-btn').forEach(b =>
+    b.addEventListener('click', () => {
+      bgMode = b.dataset.bg;
+      document.querySelectorAll('.bg-btn').forEach(x => x.classList.toggle('active', x === b));
+      touchSlide();
+    }));
+
+  /* ================= Toasts ================= */
+  const toastZone = document.getElementById('toastZone');
+  function toast(msg, ms = 3200){
+    const el = document.createElement('div');
+    el.className = 'studio-toast';
+    el.textContent = msg;
+    toastZone.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('show'));
+    setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); }, ms);
+  }
+
+  /* ================= Recording ================= */
+  const lamp = document.getElementById('lamp');
+  const timerEl = document.getElementById('timer');
+  const fmtBadge = document.getElementById('fmtBadge');
+  const btnRecord = document.getElementById('btnRecord');
+  const btnPause  = document.getElementById('btnPause');
+  const btnStop   = document.getElementById('btnStop');
+  const micToggle = document.getElementById('micToggle');
+
+  // WebM first: MediaRecorder's MP4 is a *fragmented* (streaming-style) MP4 —
+  // it previews fine in the browser but many desktop players can't build a
+  // timeline from it. Our WebM gets its metadata fully rebuilt (duration +
+  // seek index) on export, so its timeline works everywhere. MP4 remains
+  // available via the format badge toggle.
+  const MIME_CANDIDATES = [
+    { mime: 'video/webm;codecs=vp9,opus', ext: 'webm' },
+    { mime: 'video/webm;codecs=vp8,opus', ext: 'webm' },
+    { mime: 'video/webm', ext: 'webm' },
+    { mime: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', ext: 'mp4' },
+    { mime: 'video/mp4', ext: 'mp4' }
+  ];
+  let supported = [];
+  let chosen = null;
+  if (window.MediaRecorder){
+    supported = MIME_CANDIDATES.filter(c => MediaRecorder.isTypeSupported(c.mime));
+    chosen = supported[0] || null;
+  }
+  function updateBadge(){
+    fmtBadge.textContent = chosen.ext.toUpperCase();
+    fmtBadge.classList.toggle('mp4', chosen.ext === 'mp4');
+  }
+  if (!chosen){
+    fmtBadge.textContent = 'NO REC';
+    btnRecord.disabled = true;
+    toast('This browser cannot record video. Use Chrome, Edge or Safari.');
+  } else {
+    updateBadge();
+    // both containers available → badge becomes a format toggle
+    if (supported.some(c => c.ext !== chosen.ext)){
+      fmtBadge.style.cursor = 'pointer';
+      fmtBadge.title = 'Click to switch export format';
+      fmtBadge.addEventListener('click', () => {
+        if (recorder){ toast('Finish the current recording first.'); return; }
+        chosen = supported.find(c => c.ext !== chosen.ext);
+        updateBadge();
+        toast(chosen.ext === 'webm'
+          ? 'Export format: WEBM — timeline rebuilt fully seekable, works everywhere.'
+          : 'Export format: MP4 — note: browser MP4 is streaming-style; some desktop players won\'t show a timeline.', 5000);
+      });
+    }
+  }
+
+  let recorder = null, chunks = [], micStream = null;
+  let tState = { elapsed: 0, startedAt: 0, iv: null };
+
+  function fmtTime(ms){
+    const s = Math.floor(ms/1000);
+    return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+  }
+  function startTimer(){
+    tState.startedAt = performance.now();
+    tState.iv = setInterval(() =>
+      timerEl.textContent = fmtTime(tState.elapsed + performance.now() - tState.startedAt), 250);
+  }
+  function haltTimer(){
+    clearInterval(tState.iv);
+    tState.elapsed += performance.now() - tState.startedAt;
+    timerEl.textContent = fmtTime(tState.elapsed);
+  }
+
+  btnRecord.addEventListener('click', async () => {
+    if (!chosen) return;
+    chunks = [];
+    const stream = board.captureStream(30);
+
+    if (micToggle.checked){
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: {
+          echoCancellation: true, noiseSuppression: true
+        }});
+        micStream.getAudioTracks().forEach(t => stream.addTrack(t));
+        toast('🎙️ Microphone live — recording with voice.');
+      } catch (err){
+        micStream = null;
+        toast('Mic unavailable or blocked — recording video only. (Works when opened as a local file / hosted page.)', 4500);
+      }
+    }
+
+    try {
+      recorder = new MediaRecorder(stream, { mimeType: chosen.mime, videoBitsPerSecond: 5_000_000 });
+    } catch (err){
+      toast('Could not start recorder: ' + err.message);
+      return;
+    }
+    recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+    recorder.onstop = finalizeRecording;
+    recorder.start(1000); // gather chunks every second
+
+    tState.elapsed = 0;
+    startTimer();
+    lamp.className = 'lamp on';
+    btnRecord.disabled = true;
+    btnPause.disabled = false;
+    btnStop.disabled = false;
+  });
+
+  btnPause.addEventListener('click', () => {
+    if (!recorder) return;
+    if (recorder.state === 'recording'){
+      recorder.pause();
+      haltTimer();
+      lamp.className = 'lamp paused';
+      btnPause.textContent = '▶ Resume';
+      toast('Recording paused.');
+    } else if (recorder.state === 'paused'){
+      recorder.resume();
+      startTimer();
+      lamp.className = 'lamp on';
+      btnPause.textContent = '⏸ Pause';
+      toast('Recording resumed.');
+    }
+  });
+
+  btnStop.addEventListener('click', () => {
+    if (!recorder) return;
+    if (recorder.state === 'paused'){ /* elapsed already halted */ }
+    else haltTimer();
+    recorder.stop();
+  });
+
+  const exportModal = new bootstrap.Modal('#exportModal');
+  const previewVideo = document.getElementById('previewVideo');
+  const downloadLink = document.getElementById('downloadLink');
+  const exportInfo = document.getElementById('exportInfo');
+  let lastUrl = null;
+
+  async function finalizeRecording(){
+    if (micStream){ micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+    lamp.className = 'lamp';
+    btnRecord.disabled = false;
+    btnPause.disabled = true;
+    btnPause.textContent = '⏸ Pause';
+    btnStop.disabled = true;
+
+    const durationMs = tState.elapsed;                    // active recording time (pauses excluded)
+    let blob = new Blob(chunks, { type: chosen.mime.split(';')[0] });
+
+    // WebM from MediaRecorder lacks BOTH a duration header AND a Cues seek
+    // index, so players can't scrub. Rebuild the metadata with ts-ebml:
+    // this injects duration + a full seek index, making the file properly
+    // draggable in the preview, VLC, and everywhere else.
+    if (chosen.ext === 'webm' && window.EBML){
+      try {
+        const buffer = await blob.arrayBuffer();
+        const decoder = new EBML.Decoder();
+        const reader = new EBML.Reader();
+        reader.logging = false;
+        reader.drop_default_duration = false;
+        decoder.decode(buffer).forEach(elm => reader.read(elm));
+        reader.stop();
+        const seekableMeta = EBML.tools.makeMetadataSeekable(
+          reader.metadatas, reader.duration, reader.cues);
+        blob = new Blob([seekableMeta, buffer.slice(reader.metadataSize)],
+                        { type: 'video/webm' });
+      } catch (err){
+        console.warn('Seekable metadata rebuild failed, exporting raw:', err);
+      }
+    }
+
+    if (lastUrl) URL.revokeObjectURL(lastUrl);
+    lastUrl = URL.createObjectURL(blob);
+
+    const d = new Date();
+    const stamp = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0')
+                + '-' + String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0');
+    const fname = `damsan-lesson-${stamp}.${chosen.ext}`;
+
+    // Preview player: if the browser still reports Infinity, force it to
+    // compute the duration by seeking far past the end, then rewind.
+    previewVideo.onloadedmetadata = () => {
+      if (previewVideo.duration === Infinity || isNaN(previewVideo.duration)){
+        previewVideo.currentTime = 1e101;
+        previewVideo.ontimeupdate = () => {
+          previewVideo.ontimeupdate = null;
+          previewVideo.currentTime = 0;
+        };
+      }
+    };
+    previewVideo.src = lastUrl;
+    downloadLink.href = lastUrl;
+    downloadLink.download = fname;
+    const mb = (blob.size / 1048576).toFixed(1);
+    const mins = Math.floor(durationMs/60000), secs = Math.round(durationMs/1000) % 60;
+    exportInfo.textContent = `${fname} · ${mb} MB · ${mins}:${String(secs).padStart(2,'0')} · ${chosen.ext === 'mp4'
+      ? 'MP4 (streaming-style) — if your player shows no timeline, switch the badge to WEBM.'
+      : 'WebM — seek index rebuilt; timeline works in VLC, browsers, and YouTube.'}`;
+    exportModal.show();
+
+    timerEl.textContent = '00:00';
+    recorder = null;
+    chunks = [];
+  }
+
+  /* ================= Settings ================= */
+  const SETTINGS_KEY = 'damsanTeacherStudio.settings';
+  function loadSettings(){
+    try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; }
+    catch (_){ return {}; }        // storage blocked (e.g. sandboxed preview) → session defaults
+  }
+  const settings = Object.assign({ fontPx: 48, formulaPx: 48, micOn: true, camOn: false }, loadSettings());
+  function persistSettings(){
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); return true; }
+    catch (_){ return false; }
+  }
+
+  const settingsModal = new bootstrap.Modal('#settingsModal');
+  const setFontSize = document.getElementById('setFontSize');
+  const setFontSizeVal = document.getElementById('setFontSizeVal');
+  const setMicDefault = document.getElementById('setMicDefault');
+  const setCamDefault = document.getElementById('setCamDefault');
+  const textSizeDefaultOpt = document.getElementById('textSizeDefaultOpt');
+
+  function syncDefaultOptLabel(){
+    textSizeDefaultOpt.textContent = `Default — ${settings.fontPx} px`;
+  }
+  setFontSize.addEventListener('input', () =>
+    setFontSizeVal.textContent = setFontSize.value + ' px');
+
+  const setFormulaSize = document.getElementById('setFormulaSize');
+  const setFormulaSizeVal = document.getElementById('setFormulaSizeVal');
+  setFormulaSize.addEventListener('input', () =>
+    setFormulaSizeVal.textContent = setFormulaSize.value + ' px');
+
+  document.getElementById('btnSettings').addEventListener('click', () => {
+    setFontSize.value = settings.fontPx;
+    setFontSizeVal.textContent = settings.fontPx + ' px';
+    setFormulaSize.value = settings.formulaPx;
+    setFormulaSizeVal.textContent = settings.formulaPx + ' px';
+    setMicDefault.checked = settings.micOn;
+    setCamDefault.checked = settings.camOn;
+    settingsModal.show();
+  });
+
+  document.getElementById('settingsOk').addEventListener('click', () => {
+    settings.fontPx = +setFontSize.value;
+    settings.formulaPx = +setFormulaSize.value;
+    settings.micOn = setMicDefault.checked;
+    settings.camOn = setCamDefault.checked;
+    syncDefaultOptLabel();
+    micToggle.checked = settings.micOn;                    // apply immediately
+    if (settings.camOn && !cam.on){
+      document.getElementById('camToggle').checked = true;
+      startCam();
+    }
+    const saved = persistSettings();
+    settingsModal.hide();
+    toast(saved
+      ? '⚙️ Settings saved — they\'ll be remembered next time.'
+      : '⚙️ Settings applied for this session (storage unavailable here).', 4000);
+  });
+
+  // Apply persisted defaults at startup
+  syncDefaultOptLabel();
+  micToggle.checked = settings.micOn;
+  if (settings.camOn){
+    document.getElementById('camToggle').checked = true;
+    startCam();
+  }
+})();
+</script>
+</body>
+</html>
