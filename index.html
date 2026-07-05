@@ -194,6 +194,22 @@
     width:100%; height:100%; display:block; background:var(--board);
     touch-action:none; cursor:crosshair;
   }
+  .embed-wrap{
+    position:absolute; inset:0; z-index:2;
+  }
+  .embed-wrap iframe{
+    width:100%; height:100%; border:0; display:block; background:#fff;
+  }
+  .embed-overlay{
+    position:absolute; inset:0; z-index:3; width:100%; height:100%;
+    pointer-events:none;
+  }
+  .embed-mode-btn{
+    position:absolute; top:10px; right:10px; z-index:4;
+    background:rgba(8,20,29,.9); border:1px solid var(--brass); border-radius:999px;
+    color:var(--chalk); font-size:.78rem; font-weight:600; padding:6px 14px; cursor:pointer;
+  }
+  .embed-mode-btn:hover{ background:#243746; }
 
   /* Bottom option strip */
   .options{
@@ -387,6 +403,9 @@
     <div class="slide-strip" id="slideStrip" aria-label="Slides"></div>
     <div class="board-frame">
       <canvas id="board" width="1600" height="900"></canvas>
+      <div class="embed-wrap" id="embedWrap" hidden></div>
+      <canvas class="embed-overlay" id="embedOverlay" width="1600" height="900" hidden></canvas>
+      <button class="embed-mode-btn" id="embedModeBtn" hidden>🖱️ Interact — click for ✏️ Annotate</button>
     </div>
   </main>
 </div>
@@ -507,6 +526,29 @@
       <div class="modal-footer">
         <button class="btn btn-console" data-bs-dismiss="modal">Keep it</button>
         <button class="btn btn-console btn-rec" id="delSlideOk">Delete slide</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======= Embed website modal ======= -->
+<div class="modal fade" id="embedModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title">🌐 Embed a website slide</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="text" class="form-control" id="embedUrl" placeholder="https://www.geogebra.org/calculator" spellcheck="false">
+        <div class="form-text" style="color:var(--rope)">
+          The site loads live on the board — you can interact with it directly and annotate over it,
+          and it records into your video. Works with embed-friendly sites: GeoGebra, Desmos, PhET.
+          The browser will ask to share <b>this tab</b> once — choose the current tab.
+          If a site appears blank, it refuses embedding — use the 🖥️ screen-share slide instead.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-console" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-console btn-brass" id="embedOk">Add embed slide</button>
       </div>
     </div>
   </div>
@@ -1130,7 +1172,10 @@
     // screen-share slide: paint the live tab into the board (letterboxed),
     // so it records into the video and ink can be drawn on top of it
     const scr = slides[activeSlide] && slides[activeSlide].screen;
-    if (scr && scr.video.readyState >= 2 && scr.video.videoWidth){
+    const emb = slides[activeSlide] && slides[activeSlide].embed;
+    if (emb){
+      drawEmbedTo(ctx);
+    } else if (scr && scr.video.readyState >= 2 && scr.video.videoWidth){
       const vw = scr.video.videoWidth, vh = scr.video.videoHeight;
       const k = Math.min(W / vw, H / vh);
       ctx.drawImage(scr.video, (W - vw*k)/2, (H - vh*k)/2, vw*k, vh*k);
@@ -1234,6 +1279,27 @@
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('✕', im.x+im.w, im.y+1);
       ctx.restore();
+    }
+
+    // Embed slides: the iframe covers the board, so mirror the annotation
+    // layers onto a transparent overlay ABOVE it — the teacher sees their
+    // ink over the live site exactly as the recording captures it.
+    if (!embedOverlay.hidden){
+      octx.clearRect(0, 0, W, H);
+      octx.drawImage(ink, 0, 0);
+      if (current && current.tool !== 'pen' && current.tool !== 'eraser'){
+        renderStroke(current, octx);
+      }
+      for (const p of laserTrail){
+        const a = 1 - (now - p.t)/800;
+        octx.save();
+        octx.globalAlpha = a * 0.9;
+        octx.fillStyle = '#ff5a52';
+        octx.shadowColor = '#ff5a52';
+        octx.shadowBlur = 18;
+        octx.beginPath(); octx.arc(p.x, p.y, 7, 0, Math.PI*2); octx.fill();
+        octx.restore();
+      }
     }
   }
 
@@ -1505,6 +1571,14 @@
     if (!tab) return;
     const s = slides[i];
     drawPaper(tfctx, s.bgMode, s.boardColor || DEFAULT_BOARD);
+    if (s.embed && i === activeSlide && embedCapture.video){
+      const v = embedCapture.video;
+      if (v.readyState >= 2 && v.videoWidth){
+        const k = Math.min(W / v.videoWidth, H / v.videoHeight);
+        tfctx.drawImage(v, (W - v.videoWidth*k)/2, (H - v.videoHeight*k)/2,
+                        v.videoWidth*k, v.videoHeight*k);
+      }
+    }
     if (s.screen && s.screen.video.readyState >= 2 && s.screen.video.videoWidth){
       const vw = s.screen.video.videoWidth, vh = s.screen.video.videoHeight;
       const k = Math.min(W / vw, H / vh);
@@ -1536,7 +1610,7 @@
       tab.appendChild(cv);
       const num = document.createElement('span');
       num.className = 'slide-num';
-      num.textContent = (s.screen || s.screenEnded ? '🖥️ ' : '') + (i + 1);
+      num.textContent = (s.screen || s.screenEnded ? '🖥️ ' : s.embed ? '🌐 ' : '') + (i + 1);
       tab.appendChild(num);
       if (slides.length > 1){
         const del = document.createElement('span');
@@ -1562,6 +1636,16 @@
     addScr.title = 'Add screen-share slide — show another tab (e.g. GeoGebra) and annotate over it';
     addScr.addEventListener('click', addScreenSlide);
     strip.appendChild(addScr);
+    const addEmb = document.createElement('button');
+    addEmb.className = 'slide-add';
+    addEmb.textContent = '🌐';
+    addEmb.title = 'Add embed slide — a live website ON the board: interact with it directly and annotate over it';
+    addEmb.addEventListener('click', () => {
+      document.getElementById('embedUrl').value = '';
+      embedModal.show();
+      setTimeout(() => document.getElementById('embedUrl').focus(), 350);
+    });
+    strip.appendChild(addEmb);
     slides.forEach((_, i) => updateThumb(i));
   }
 
@@ -1578,6 +1662,7 @@
     document.querySelectorAll('.board-swatch').forEach(x =>
       x.classList.toggle('active', x.dataset.board === boardColor));
     rebuildInk();
+    updateEmbedVisibility();
   }
 
   function switchSlide(i){
@@ -1636,6 +1721,109 @@
     toast('🖥️ Screen slide added — the shared tab records into your video. Draw over it with any tool.');
   }
 
+  /* ---- Embed slides: a live website ON the board via Region Capture ---- */
+  const embedWrap = document.getElementById('embedWrap');
+  const embedOverlay = document.getElementById('embedOverlay');
+  const octx = embedOverlay.getContext('2d');
+  const embedModeBtn = document.getElementById('embedModeBtn');
+  const embedModal = new bootstrap.Modal('#embedModal');
+  const embedCapture = { stream: null, video: null };
+  let embedMode = 'interact';   // 'interact' → clicks reach the site; 'annotate' → clicks draw
+
+  async function ensureEmbedCapture(){
+    if (embedCapture.stream && embedCapture.stream.getVideoTracks()[0].readyState === 'live') return true;
+    if (!('CropTarget' in window) || !navigator.mediaDevices?.getDisplayMedia){
+      toast('Embed slides need Chrome/Edge (Region Capture). Use the 🖥️ screen-share slide instead.', 5000);
+      return false;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 30 },
+        audio: false,
+        preferCurrentTab: true
+      });
+      const track = stream.getVideoTracks()[0];
+      const target = await CropTarget.fromElement(embedWrap);
+      await track.cropTo(target);
+      const video = document.createElement('video');
+      video.autoplay = true; video.muted = true; video.playsInline = true;
+      video.srcObject = stream;
+      await video.play().catch(() => {});
+      embedCapture.stream = stream;
+      embedCapture.video = video;
+      track.addEventListener('ended', () => {
+        embedCapture.stream = null; embedCapture.video = null;
+        toast('Tab capture ended — embed slides show a placeholder in recordings until re-added.', 5000);
+      });
+      return true;
+    } catch (err){
+      toast('Tab capture was cancelled or blocked — pick "This Tab" in the share dialog. (Works locally / hosted.)', 5000);
+      return false;
+    }
+  }
+
+  function setEmbedMode(m){
+    embedMode = m;
+    embedWrap.style.pointerEvents = (m === 'interact') ? 'auto' : 'none';
+    embedModeBtn.textContent = (m === 'interact')
+      ? '🖱️ Interact — click for ✏️ Annotate'
+      : '✏️ Annotate — click for 🖱️ Interact';
+  }
+  embedModeBtn.addEventListener('click', () =>
+    setEmbedMode(embedMode === 'interact' ? 'annotate' : 'interact'));
+
+  function updateEmbedVisibility(){
+    const s = slides[activeSlide];
+    const isEmbed = !!(s && s.embed);
+    embedWrap.hidden = !isEmbed;
+    embedOverlay.hidden = !isEmbed;
+    embedModeBtn.hidden = !isEmbed;
+    embedWrap.querySelectorAll('iframe').forEach(f => { f.style.display = 'none'; });
+    if (isEmbed){
+      s.embed.iframe.style.display = '';
+      setEmbedMode('interact');
+    }
+  }
+
+  document.getElementById('embedOk').addEventListener('click', async () => {
+    let url = document.getElementById('embedUrl').value.trim();
+    if (!url){ toast('Enter a website address first.'); return; }
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    embedModal.hide();
+    const ok = await ensureEmbedCapture();   // one tab-share prompt, reused by all embed slides
+    if (!ok && !('CropTarget' in window)) return;
+    const iframe = document.createElement('iframe');
+    iframe.src = url;
+    iframe.allow = 'fullscreen; clipboard-write; autoplay';
+    embedWrap.appendChild(iframe);
+    syncToSlide();
+    const s = { strokes: [], redoStack: [], bgMode: 'plain', images: [],
+                boardColor, embed: { url, iframe } };
+    slides.push(s);
+    activeSlide = slides.length - 1;
+    loadSlide(activeSlide);
+    renderStrip();
+    toast('🌐 Embed slide added — Interact mode is on; use the top-right button to switch to Annotate.', 5000);
+  });
+
+  function drawEmbedTo(c){
+    const v = embedCapture.video;
+    if (v && v.readyState >= 2 && v.videoWidth){
+      const k = Math.min(W / v.videoWidth, H / v.videoHeight);
+      c.drawImage(v, (W - v.videoWidth*k)/2, (H - v.videoHeight*k)/2,
+                  v.videoWidth*k, v.videoHeight*k);
+      return true;
+    }
+    c.save();
+    c.fillStyle = 'rgba(242,237,226,0.45)';
+    c.font = "600 40px 'IBM Plex Sans', sans-serif";
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('🌐 ' + (slides[activeSlide]?.embed?.url || 'Embedded site') +
+               ' — capture not active', W/2, H/2);
+    c.restore();
+    return false;
+  }
+
   const delSlideModal = new bootstrap.Modal('#delSlideModal');
   let slideToDelete = null;
   function askDeleteSlide(i){
@@ -1649,7 +1837,12 @@
     syncToSlide();
     const del = slides[slideToDelete];
     if (del.screen) del.screen.stream.getTracks().forEach(t => t.stop());
+    if (del.embed) del.embed.iframe.remove();
     slides.splice(slideToDelete, 1);
+    if (!slides.some(s => s.embed) && embedCapture.stream){
+      embedCapture.stream.getTracks().forEach(t => t.stop());
+      embedCapture.stream = null; embedCapture.video = null;
+    }
     if (activeSlide >= slides.length) activeSlide = slides.length - 1;
     else if (slideToDelete < activeSlide) activeSlide--;
     loadSlide(activeSlide);
